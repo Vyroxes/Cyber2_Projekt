@@ -385,7 +385,7 @@ class EncryptDecryptThread(QThread):
 class FileEncryptor(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowIcon(QIcon("ikona.png"))
+        self.setWindowIcon(QIcon("icon.png"))
         self.initUI()
 
     def initUI(self):
@@ -442,7 +442,7 @@ class FileEncryptor(QWidget):
                 subcontrol-position: top center;
                 padding: 0 3px;
                 color: #ffffff;
-            }     
+            }
             QProgressBar {
                 background-color: #3c3f41;
                 color: #ffffff;
