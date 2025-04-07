@@ -15,16 +15,16 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 ## 🔑 Klucze
 
 ### Symetryczne
-- Klucz zapisywany w pliku `.key`
-- Przykładowy klucz symetryczny:
+- Klucz generowany i zapisywany w pliku `.key`
+- Przykładowy plik z kluczem symetrycznym:
 
 ![klucz](https://github.com/user-attachments/assets/03c99485-6229-4b68-b61a-a9663e879722)
 
 
 ### Asymetryczne (RSA)
-- Klucze zapisywane w osobnych plikach `.key`
+- Klucze generowane i zapisywane w osobnych plikach `.key`
 - Klucz publiczny generowany na podstawie klucza prywatnego
-- Przykładowe klucze prywatny i publiczny:
+- Przykładowe pliki z kluczami prywatnym i publicznym:
 
 ![klucze](https://github.com/user-attachments/assets/709d0929-bada-4982-961f-aec14899e5a8)
 
@@ -38,8 +38,8 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Rodzaj:** Symetryczny, blokowy
 - **Struktura:** Sieć Feistela z operacjami w polu GF(2⁸)
 - **Długość klucza w bitach:** 128, 192, 256
-- **Tryby:** EAX, CBC, ECB
-- **Sprawdzanie integralności plików**:
+- **Tryby:** EAX (Encrypt-then-Authenticate-then-Translate), CBC Cipher Block Chaining), ECB (Electronic Codebook)
+- **Sprawdzanie integralności plików**: tryb EAS - tag MAC (Message Authentication Code), tryby CBC oraz ECB - padding PKCS7
 
 ![AES 1](https://github.com/user-attachments/assets/e886e708-3506-4e16-b7c6-256dd724c763)
 
@@ -51,8 +51,8 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Rodzaj:** Asymetryczny
 - **Struktura:** Oparty na trudności faktoryzacji dużych liczb pierwszych
 - **Długość klucza w bitach:** 1024, 2048, 3072, 4096
-- **Padding:** PKCS1 v1.5, OAEP
-- **Sprawdzanie integralności plików**:
+- **Padding:** PKCS1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding)
+- **Sprawdzanie integralności plików**: tag HMAC (Hash-based Message Authentication Code)
 
 ![RSA 1](https://github.com/user-attachments/assets/c325fa2c-37d9-45f7-91a4-b41c30c13a28)
 
@@ -64,8 +64,8 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Rodzaj:** Symetryczny, blokowy
 - **Struktura:** Sieć Feistela
 - **Długość klucza w bitach:** 192
-- **Tryby:** EAX, CFB, OFB
-- **Sprawdzanie integralności plików**:
+- **Tryby:** EAX (Encrypt-then-Authenticate-then-Translate), CFB (Cipher Feedback), OFB (Output Feedback)
+- **Sprawdzanie integralności plików**: tryb EAX - tag MAC (Message Authentication Code)
 
 ![3DES 1](https://github.com/user-attachments/assets/af48a252-52f1-4f31-8e93-870b5ebc7d9d)
 
@@ -75,13 +75,16 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Rodzaj:** Symetryczny, strumieniowy
 - **Struktura:** Macierze i operacje XOR
 - **Długość klucza w bitach:** 256
-- **Sprawdzanie integralności plików**:
+- **Sprawdzanie integralności plików**: tag Poly1305
+
+![XChaCha20 1](https://github.com/user-attachments/assets/506f0114-eda8-4273-8c11-c8408a6771ac)
+
 
 ### 🔹 **Threefish**
 - **Rodzaj:** Symetryczny, blokowy
 - **Struktura:** Transformacje modularne i bitowe
 - **Długość klucza w bitach:** 256, 512, 1024
-- **Sprawdzanie integralności plików**:
+- **Sprawdzanie integralności plików**: funkcja skrótu Skein
 
 ![Threefish 1](https://github.com/user-attachments/assets/3e42f900-9449-45fa-89d4-31f072dbaef5)
 
@@ -89,9 +92,13 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 
 ---
 
-## 📂 Podgląd ścieżki pliku
+## 📂 Podgląd ścieżki pliku oraz możliwość usunięcia pliku oraz klucza/kluczy
 
 ![Podgląd](https://github.com/user-attachments/assets/2d44b4db-6f1f-409f-b72d-72eb4d6e5d41)
+
+![image](https://github.com/user-attachments/assets/89bd5752-d40e-4750-81e9-0e579e5ae402)
+
+![image](https://github.com/user-attachments/assets/8643733a-6ad4-48b9-acb9-ac0f86dfd980)
 
 ## 🔏 Zaszyfrowany plik w rozszerzeniu `.enc`
 
@@ -101,7 +108,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 
 ## ⏳ Funkcjonalny **progress bar** oraz możliwość anulowania operacji szyfrowania/deszyfrowania
 
-![Progress Bar](https://github.com/user-attachments/assets/Uploading image.png…)
+![Progress bar](https://github.com/user-attachments/assets/132bae2a-6cad-4667-ae75-bdb9a457ffdd)
 
 ---
 
