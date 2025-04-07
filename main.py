@@ -1055,6 +1055,8 @@ class FileEncryptor(QWidget):
 
     def update_algorithm_settings(self):
         algorithm = self.algorithm_box.currentText()
+        self.additional_options_widget.setVisible(False)
+        self.additional_options_button.setText("Ustawienia algorytmu ▼")
         if algorithm == "AES":
             self.aes_options_widget.setVisible(True)
             self.rsa_options_widget.setVisible(False)
