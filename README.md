@@ -112,4 +112,20 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 
 ---
 
+## 🧰 Wymagania i instalacja zależności
+
+### Aplikacja wymaga następujących bibliotek
+
+- `PyQt5` - biblioteka GUI dla Pythona.
+- `pycryptodome` - zestaw narzędzi kryptograficznych.
+- `skein` - implementacja algorytmów Skein.
+
+
+### Instalacja zależności
+  ```bash
+  pip install PyQt5 pycryptodome skein
+  ```
+
+---
+
 📌 **Autor:** *Michał Rusek / Vyroxes*
