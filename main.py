@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QFileDialog, QLabel, QMessageBox, QComboBox, QProgressBar, QGroupBox, QHBoxLayout
+from PyQt5.QtWinExtras import QWinTaskbarButton, QWinTaskbarProgress
 from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QIcon
 from Crypto.Cipher import AES, DES3, PKCS1_OAEP, PKCS1_v1_5, ChaCha20_Poly1305
 from Crypto.PublicKey import RSA
@@ -7,7 +9,7 @@ from Crypto.Random import get_random_bytes
 from Crypto.Hash import SHA256, HMAC
 from skein import skein256, skein512, skein1024, threefish
 import os
-from PyQt5.QtCore import QThread, pyqtSignal
+import sys
 
 class EncryptDecryptThread(QThread):
     progress_signal = pyqtSignal(int)
@@ -387,6 +389,8 @@ class FileEncryptor(QWidget):
         super().__init__()
         self.setWindowIcon(QIcon("icon.png"))
         self.initUI()
+        self.taskbar_button = None
+        self.taskbar_progress = None
 
     def initUI(self):
         self.setStyleSheet("""
@@ -891,6 +895,8 @@ class FileEncryptor(QWidget):
 
         self.toggle_ui(False)
         self.cancel_button.setVisible(True)
+        self.taskbar_progress.setVisible(True)
+        self.taskbar_progress.setValue(0)
         self.thread = EncryptDecryptThread(self.file_path, key_path, algorithm, mode, padding, key_size, save_path=self.save_path)
         self.thread.progress_signal.connect(self.update_progress)
         self.thread.finished_signal.connect(self.operation_finished)
@@ -949,6 +955,8 @@ class FileEncryptor(QWidget):
         self.toggle_ui(False)
         self.cancel_button.setVisible(True)
         QTimer.singleShot(0, self.adjustSize)
+        self.taskbar_progress.setVisible(True)
+        self.taskbar_progress.setValue(0)
         self.thread = EncryptDecryptThread(self.file_path, key_path, algorithm, mode, padding, key_size, decrypt=True, save_path=self.save_path)
         self.thread.progress_signal.connect(self.update_progress)
         self.thread.finished_signal.connect(self.operation_finished)
@@ -956,12 +964,16 @@ class FileEncryptor(QWidget):
 
     def update_progress(self, value):
         self.progress_bar.setValue(value)
+        if value > 0:
+            self.taskbar_progress.setVisible(True)
+        self.taskbar_progress.setValue(value)
 
     def cancel_operation(self):
         if hasattr(self, "thread") and self.thread.isRunning():
             self.thread.terminate()
             self.thread.wait()
             self.cancel_button.setVisible(False)
+            self.taskbar_progress.setVisible(False)
             self.toggle_ui(True)
             QMessageBox.information(self, "Informacja", "Operacja została anulowana.")
             if self.progress_bar.value != 0:
@@ -972,6 +984,7 @@ class FileEncryptor(QWidget):
         if self.progress_bar.value != 0:
             self.progress_bar.setValue(0)
         self.cancel_button.setVisible(False)
+        self.taskbar_progress.setVisible(False)
         self.toggle_ui(True)
         QTimer.singleShot(0, self.adjustSize)
         if "Błąd" in message:
@@ -1018,6 +1031,16 @@ class FileEncryptor(QWidget):
                     self.label.setToolTip("")
                 except Exception as e:
                     QMessageBox.warning(self, "Błąd", f"Nie udało się usunąć pliku: {str(e)}")
+
+    def init_taskbar_progress(self):
+        self.taskbar_button = QWinTaskbarButton(self)
+        self.taskbar_button.setWindow(self.windowHandle())
+        self.taskbar_progress = self.taskbar_button.progress()
+        self.taskbar_progress.setVisible(False)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, self.init_taskbar_progress)
 
     def toggle_ui(self, enabled):
         self.file_button.setEnabled(enabled)
@@ -1129,7 +1152,14 @@ class FileEncryptor(QWidget):
         QTimer.singleShot(0, self.adjustSize)
 
 if __name__ == "__main__":
-    app = QApplication([])
+    app = QApplication(sys.argv)
+    if getattr(sys, 'frozen', False):
+        applicationPath = sys._MEIPASS
+    elif __file__:
+        applicationPath = os.path.dirname(__file__)
+    icon_path = os.path.join(applicationPath, "icon.ico")
+    app.setWindowIcon(QIcon(icon_path))
     window = FileEncryptor()
+    window.setWindowIcon(QIcon(icon_path))
     window.show()
     app.exec_()
