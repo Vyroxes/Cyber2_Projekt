@@ -106,9 +106,11 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 
 ---
 
-## ⏳ Funkcjonalny **progress bar** oraz możliwość anulowania operacji szyfrowania/deszyfrowania
+## ⏳ Funkcjonalny **progress bar**, integracja z paskiem zadań, oraz możliwość anulowania operacji szyfrowania/deszyfrowania
 
 ![Progress bar](https://github.com/user-attachments/assets/132bae2a-6cad-4667-ae75-bdb9a457ffdd)
+
+![image](https://github.com/user-attachments/assets/4cfb24a2-45d5-4de5-9933-58d4be05b996)
 
 ---
 
