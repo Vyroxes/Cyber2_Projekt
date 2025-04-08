@@ -128,6 +128,10 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
   pip install PyQt5 pycryptodome skein
   ```
 
+  ```bash
+  pip install -r requirements.txt
+  ```
+
 ---
 
 📌 **Autor:** *Michał Rusek / Vyroxes*
