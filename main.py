@@ -541,7 +541,6 @@ class FileEncryptor(QWidget):
             ("3DES", "3DES"),
             ("XChaCha20-Poly1305", "XChaCha20-Poly1305"),
             ("Threefish-Skein", "Threefish-Skein"),
-            ("Serpent", "Serpent"),
             ("--- Asymetryczne ---", None),
             ("RSA-HMAC", "RSA-HMAC"),
         ]

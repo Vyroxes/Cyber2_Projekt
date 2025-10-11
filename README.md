@@ -32,7 +32,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 
 ## 🔢 Zaimplementowane algorytmy
 
-![Algorytmy](https://github.com/user-attachments/assets/d54bb9e7-1712-4d37-a353-4588862d3895)
+![Algorytmy](https://github.com/user-attachments/assets/01467c60-b404-4d2e-98ed-3cfcc89bfb6f)
 
 ### 🔹 **AES (Advanced Encryption Standard)**
 - **Rodzaj:** Symetryczny, blokowy
