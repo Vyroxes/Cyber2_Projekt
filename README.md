@@ -2,7 +2,7 @@
 
 ## 🛠 Aplikacja do szyfrowania i deszyfrowania plików
 
-Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych, dźwiękowych, wideo itp. za pomocą różnych algorytmów symetrycznych i asymetrycznych. Dodatkowo implementuje mechanizm sprawdzania integralności danych.
+Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych, dźwiękowych, wideo, itp. za pomocą różnych algorytmów symetrycznych i asymetrycznych. Dodatkowo implementuje mechanizm sprawdzania integralności danych.
 
 ---
 
