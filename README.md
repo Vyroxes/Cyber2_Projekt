@@ -45,7 +45,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 
 ![AES 2](https://github.com/user-attachments/assets/423ba5e0-4a6b-47a5-8b63-ab8d7e97babc)
 
-![AES 3](<img width="408" height="128" alt="image" src="https://github.com/user-attachments/assets/f7f7670e-739f-4a35-aef0-f57844aa93b9" />)
+![AES 3](https://github.com/user-attachments/assets/f7f7670e-739f-4a35-aef0-f57844aa93b9)
 
 ### 🔹 **RSA (Rivest–Shamir–Adleman)**
 - **Rodzaj:** Asymetryczny
