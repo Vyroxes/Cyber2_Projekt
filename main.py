@@ -45,7 +45,7 @@ class EncryptDecryptThread(QThread):
                     raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz ma długość " + str(len(key) * 8) + "-bitów.")
 
                 if self.decrypt:
-                    if self.mode == "GCM":
+                    if self.mode == "GCM-MAC":
                         nonce, tag, ciphertext = data[:12], data[-16:], data[12:-16]
                         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
                         decrypted_data = b""
@@ -107,7 +107,7 @@ class EncryptDecryptThread(QThread):
                         decrypted_data = decrypted_data[:-padding_length]
                         operation_message = "Plik został deszyfrowany!"
                 else:
-                    if self.mode == "GCM":
+                    if self.mode == "GCM-MAC":
                         nonce = get_random_bytes(12)
                         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
                         encrypted_data = b""
@@ -557,7 +557,7 @@ class FileEncryptor(QWidget):
         self.aes_mode_label = QLabel("Wybierz tryb AES:")
         aes_options_layout.addWidget(self.aes_mode_label)
         self.aes_mode_box = QComboBox()
-        self.aes_mode_box.addItems(["GCM", "EAX-MAC", "CBC", "ECB"])
+        self.aes_mode_box.addItems(["GCM-MAC", "EAX-MAC", "CBC", "ECB"])
         aes_options_layout.addWidget(self.aes_mode_box)
         self.aes_options_widget.setLayout(aes_options_layout)
         additional_options_layout.addWidget(self.aes_options_widget)
@@ -717,6 +717,38 @@ class FileEncryptor(QWidget):
         self.progress_bar.setAlignment(Qt.AlignCenter)
         main_layout.addWidget(self.progress_bar)
 
+        self.algorithm_widgets = {
+            "AES": [self.aes_options_widget],
+            "RSA-HMAC": [self.rsa_options_widget, self.rsa_key_widget],
+            "3DES": [self.des_options_widget],
+            "XChaCha20-Poly1305": [],
+            "Threefish-Skein": [self.threefish_options_widget]
+        }
+
+        self.all_controls = [
+            self.file_button,
+            self.clear_file_button,
+            self.key_button,
+            self.clear_key_button,
+            self.generate_key_button,
+            self.select_private_key_button,
+            self.clear_private_key_button,
+            self.generate_private_key_button,
+            self.select_public_key_button,
+            self.clear_public_key_button,
+            self.generate_public_key_button,
+            self.encrypt_button,
+            self.decrypt_button,
+            self.algorithm_box,
+            self.additional_options_button,
+            self.aes_key_size_box,
+            self.aes_mode_box,
+            self.rsa_key_size_box,
+            self.rsa_padding_box,
+            self.des_mode_box,
+            self.threefish_key_size_box
+        ]
+
         self.setLayout(main_layout)
         self.setWindowTitle("Szyfrowanie i deszyfrowanie plików")
         self.setMinimumWidth(500)
@@ -792,7 +824,7 @@ class FileEncryptor(QWidget):
                 self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
                 self.rsa_private_key_label.setToolTip(self.private_key_path)
             else:
-                self.rsa_private_key_label.setText("Klucz prywatny: mie wybrano")
+                self.rsa_private_key_label.setText("Klucz prywatny: nie wybrano")
                 self.rsa_private_key_label.setToolTip("")
                 self.clear_private_key_button.setVisible(False)
 
@@ -815,7 +847,7 @@ class FileEncryptor(QWidget):
                 self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
                 self.rsa_public_key_label.setToolTip(self.public_key_path)
             else:
-                self.rsa_public_key_label.setText("Klucz publiczny: mie wybrano")
+                self.rsa_public_key_label.setText("Klucz publiczny: nie wybrano")
                 self.rsa_public_key_label.setToolTip("")
                 self.clear_public_key_button.setVisible(False)
 
@@ -1096,28 +1128,8 @@ class FileEncryptor(QWidget):
         QTimer.singleShot(0, self.init_taskbar_progress)
 
     def toggle_ui(self, enabled):
-        self.file_button.setEnabled(enabled)
-        self.clear_file_button.setEnabled(enabled)
-        self.key_button.setEnabled(enabled)
-        self.clear_key_button.setEnabled(enabled)
-        self.generate_key_button.setEnabled(enabled)
-        self.select_private_key_button.setEnabled(enabled)
-        self.clear_private_key_button.setEnabled(enabled)
-        self.generate_private_key_button.setEnabled(enabled)
-        self.select_public_key_button.setEnabled(enabled)
-        self.clear_public_key_button.setEnabled(enabled)
-        self.generate_public_key_button.setEnabled(enabled)
-        self.generate_key_button.setEnabled(enabled)
-        self.encrypt_button.setEnabled(enabled)
-        self.decrypt_button.setEnabled(enabled)
-        self.algorithm_box.setEnabled(enabled)
-        self.additional_options_button.setEnabled(enabled)
-        self.aes_key_size_box.setEnabled(enabled)
-        self.aes_mode_box.setEnabled(enabled)
-        self.rsa_key_size_box.setEnabled(enabled)
-        self.rsa_padding_box.setEnabled(enabled)
-        self.des_mode_box.setEnabled(enabled)
-        self.threefish_key_size_box.setEnabled(enabled)
+        for ctrl in self.all_controls:
+            ctrl.setEnabled(enabled)
 
     def toggle_additional_options(self):
         if self.additional_options_widget.isVisible():
@@ -1131,76 +1143,29 @@ class FileEncryptor(QWidget):
 
     def update_algorithm_settings(self):
         algorithm = self.algorithm_box.currentText()
-        self.additional_options_widget.setVisible(False)
-        self.additional_options_button.setText("Ustawienia algorytmu ▼")
-        if algorithm == "AES":
-            self.aes_options_widget.setVisible(True)
-            self.rsa_options_widget.setVisible(False)
-            self.des_options_widget.setVisible(False)
-            self.threefish_options_widget.setVisible(False)
-            self.additional_options_button.setVisible(True)
-            self.key_button.setVisible(True)
-            self.generate_key_button.setVisible(True)
-            self.clear_private_key_path()
-            self.clear_public_key_path()
-            self.clear_key_path()
-            self.key_label.setText("Wybierz lub wygeneruj klucz:")
-            self.key_group.setTitle("Klucz")
-            self.rsa_key_widget.setVisible(False)
-        elif algorithm == "RSA-HMAC":
-            self.aes_options_widget.setVisible(False)
-            self.rsa_options_widget.setVisible(True)
-            self.des_options_widget.setVisible(False)
-            self.threefish_options_widget.setVisible(False)
-            self.additional_options_button.setVisible(True)
+
+        for widgets_list in self.algorithm_widgets.values():
+            for widget in widgets_list:
+                widget.setVisible(False)
+
+        for widget in self.algorithm_widgets.get(algorithm, []):
+            widget.setVisible(True)
+
+        if algorithm == "RSA-HMAC":
             self.key_button.setVisible(False)
             self.generate_key_button.setVisible(False)
-            self.clear_key_path()
             self.key_label.setText("Wybierz lub wygeneruj klucze:")
             self.key_group.setTitle("Klucze")
-            self.rsa_key_widget.setVisible(True)
-        elif algorithm == "3DES":
-            self.aes_options_widget.setVisible(False)
-            self.rsa_options_widget.setVisible(False)
-            self.des_options_widget.setVisible(True)
-            self.threefish_options_widget.setVisible(False)
-            self.additional_options_button.setVisible(True)
-            self.key_button.setVisible(True)
-            self.generate_key_button.setVisible(True)
-            self.clear_private_key_path()
-            self.clear_public_key_path()
-            self.clear_key_path()
-            self.key_label.setText("Wybierz lub wygeneruj klucz:")
-            self.key_group.setTitle("Klucz")
-            self.rsa_key_widget.setVisible(False)
-        elif algorithm == "Threefish-Skein":
-            self.aes_options_widget.setVisible(False)
-            self.rsa_options_widget.setVisible(False)
-            self.des_options_widget.setVisible(False)
-            self.threefish_options_widget.setVisible(True)
-            self.additional_options_button.setVisible(True)
-            self.key_button.setVisible(True)
-            self.generate_key_button.setVisible(True)
-            self.clear_private_key_path()
-            self.clear_public_key_path()
-            self.clear_key_path()
-            self.key_label.setText("Wybierz lub wygeneruj klucz:")
-            self.key_group.setTitle("Klucz")
-            self.rsa_key_widget.setVisible(False)
         else:
-            self.aes_options_widget.setVisible(False)
-            self.rsa_options_widget.setVisible(False)
-            self.des_options_widget.setVisible(False)
-            self.threefish_options_widget.setVisible(False)
-            self.additional_options_button.setVisible(False)
             self.key_button.setVisible(True)
             self.generate_key_button.setVisible(True)
+            self.key_label.setText("Wybierz lub wygeneruj klucz:")
+            self.key_group.setTitle("Klucz")
             self.clear_private_key_path()
             self.clear_public_key_path()
             self.clear_key_path()
-            self.key_label.setText("Wybierz lub wygeneruj klucz:")
-            self.key_group.setTitle("Klucz")
-            self.rsa_key_widget.setVisible(False)
+
+        self.additional_options_button.setVisible(bool(self.algorithm_widgets.get(algorithm)))
 
         QTimer.singleShot(0, self.adjustSize)
 

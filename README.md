@@ -38,14 +38,15 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Rodzaj:** Symetryczny, blokowy
 - **Struktura:** Sieć Feistela z operacjami w polu GF(2⁸)
 - **Długość klucza w bitach:** 128, 192, 256
-- **Tryby:** GCM (Galois/Counter Mode), EAX (Encrypt-then-Authenticate-then-Translate), CBC Cipher Block Chaining), ECB (Electronic Codebook)
+- **Tryby:** GCM (Galois/Counter Mode), EAX (Encrypt-then-Authenticate-then-Translate), CBC (Cipher Block Chaining), ECB (Electronic Codebook)
 - **Sprawdzanie integralności plików**: tryby  GCM oraz EAS - tag MAC (Message Authentication Code), tryby CBC oraz ECB - padding PKCS7
+- **Maksymalny rozmiar pliku**: 64 GB
 
 ![AES 1](https://github.com/user-attachments/assets/e886e708-3506-4e16-b7c6-256dd724c763)
 
 ![AES 2](https://github.com/user-attachments/assets/423ba5e0-4a6b-47a5-8b63-ab8d7e97babc)
 
-![AES 3](https://github.com/user-attachments/assets/4885a943-6e9c-4c38-ae9b-03635532fa0d)
+![AES 3](https://github.com/user-attachments/assets/72c7b224-8bcf-43dd-9f26-ad79065ae6ba)
 
 ### 🔹 **RSA (Rivest–Shamir–Adleman)**
 - **Rodzaj:** Asymetryczny
@@ -53,6 +54,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Długość klucza w bitach:** 1024, 2048, 3072, 4096
 - **Padding:** PKCS1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding)
 - **Sprawdzanie integralności plików**: tag HMAC (Hash-based Message Authentication Code)
+- **Maksymalny rozmiar pliku**: 1 MB
 
 ![RSA 1](https://github.com/user-attachments/assets/c325fa2c-37d9-45f7-91a4-b41c30c13a28)
 
@@ -66,6 +68,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Długość klucza w bitach:** 192
 - **Tryby:** EAX (Encrypt-then-Authenticate-then-Translate), CFB (Cipher Feedback), OFB (Output Feedback)
 - **Sprawdzanie integralności plików**: tryb EAX - tag MAC (Message Authentication Code)
+- **Maksymalny rozmiar pliku**: 32 GB
 
 ![3DES 1](https://github.com/user-attachments/assets/af48a252-52f1-4f31-8e93-870b5ebc7d9d)
 
@@ -76,6 +79,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Struktura:** Macierze i operacje XOR
 - **Długość klucza w bitach:** 256
 - **Sprawdzanie integralności plików**: tag Poly1305
+- **Maksymalny rozmiar pliku**: praktycznie nieograniczony (setki TB do PB)
 
 ![XChaCha20 1](https://github.com/user-attachments/assets/506f0114-eda8-4273-8c11-c8408a6771ac)
 
@@ -85,6 +89,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Struktura:** Transformacje modularne i bitowe
 - **Długość klucza w bitach:** 256, 512, 1024
 - **Sprawdzanie integralności plików**: funkcja skrótu Skein
+- **Maksymalny rozmiar pliku**: praktycznie nieograniczony (setki TB do PB)
 
 ![Threefish 1](https://github.com/user-attachments/assets/3e42f900-9449-45fa-89d4-31f072dbaef5)
 
@@ -99,6 +104,8 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 ![image](https://github.com/user-attachments/assets/89bd5752-d40e-4750-81e9-0e579e5ae402)
 
 ![image](https://github.com/user-attachments/assets/8643733a-6ad4-48b9-acb9-ac0f86dfd980)
+
+---
 
 ## 🔏 Zaszyfrowany plik w rozszerzeniu `.enc`
 
