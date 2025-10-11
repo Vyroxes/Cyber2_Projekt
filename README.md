@@ -32,7 +32,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 
 ## 🔢 Zaimplementowane algorytmy
 
-![Algorytmy](https://github.com/user-attachments/assets/5b04e1a5-d0ae-4c62-89e0-d8f56da48dd3)
+![Algorytmy](https://github.com/user-attachments/assets/d54bb9e7-1712-4d37-a353-4588862d3895)
 
 ### 🔹 **AES (Advanced Encryption Standard)**
 - **Rodzaj:** Symetryczny, blokowy
@@ -42,7 +42,7 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Sprawdzanie integralności plików**: tryby  GCM oraz EAS - tag MAC (Message Authentication Code), tryby CBC oraz ECB - padding PKCS7
 - **Maksymalny rozmiar pliku**: 64 GB
 
-![AES 1](https://github.com/user-attachments/assets/e886e708-3506-4e16-b7c6-256dd724c763)
+![AES 1](https://github.com/user-attachments/assets/e29ded45-be4d-4019-8139-d7976b2b1c31)
 
 ![AES 2](https://github.com/user-attachments/assets/423ba5e0-4a6b-47a5-8b63-ab8d7e97babc)
 

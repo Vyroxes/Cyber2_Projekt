@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QFi
 from PyQt5.QtWinExtras import QWinTaskbarButton
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtCore import QThread, pyqtSignal
-from PyQt5.QtGui import QIcon
+from PyQt5.QtGui import QIcon, QBrush, QColor
 from Crypto.Cipher import AES, DES3, PKCS1_OAEP, PKCS1_v1_5, ChaCha20_Poly1305
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
@@ -535,8 +535,31 @@ class FileEncryptor(QWidget):
         self.algorithm_label = QLabel("Wybierz algorytm:")
         algo_layout.addWidget(self.algorithm_label)
         self.algorithm_box = QComboBox()
-        self.algorithm_box.addItems(["AES", "RSA-HMAC", "3DES", "XChaCha20-Poly1305", "Threefish-Skein"])
+        items = [
+            ("--- Symetryczne ---", None),
+            ("AES", "AES"),
+            ("3DES", "3DES"),
+            ("XChaCha20-Poly1305", "XChaCha20-Poly1305"),
+            ("Threefish-Skein", "Threefish-Skein"),
+            ("Serpent", "Serpent"),
+            ("--- Asymetryczne ---", None),
+            ("RSA-HMAC", "RSA-HMAC"),
+        ]
+
+        self.algorithm_box.clear()
+        previous_index = 1
+
+        for text, value in items:
+            self.algorithm_box.addItem(text, value)
+            if value is None:
+                index = self.algorithm_box.count() - 1
+                item = self.algorithm_box.model().item(index)
+                item.setFlags(Qt.NoItemFlags)
+                item.setForeground(QBrush(QColor("gray")))
+                
+        self.algorithm_box.setCurrentIndex(previous_index)
         self.algorithm_box.currentIndexChanged.connect(self.update_algorithm_settings)
+
         algo_layout.addWidget(self.algorithm_box)
         self.additional_options_button = QPushButton("Ustawienia algorytmu ▼")
         self.additional_options_button.clicked.connect(self.toggle_additional_options)
@@ -1142,7 +1165,9 @@ class FileEncryptor(QWidget):
         QTimer.singleShot(0, self.adjustSize)
 
     def update_algorithm_settings(self):
-        algorithm = self.algorithm_box.currentText()
+        algorithm = self.algorithm_box.currentData()
+        if algorithm is None:
+            return
 
         for widgets_list in self.algorithm_widgets.values():
             for widget in widgets_list:
@@ -1165,7 +1190,10 @@ class FileEncryptor(QWidget):
             self.clear_public_key_path()
             self.clear_key_path()
 
-        self.additional_options_button.setVisible(bool(self.algorithm_widgets.get(algorithm)))
+        has_additional = bool(self.algorithm_widgets.get(algorithm))
+        self.additional_options_button.setVisible(has_additional)
+        self.additional_options_widget.setVisible(False)
+        self.additional_options_button.setText("Ustawienia algorytmu ▼")
 
         QTimer.singleShot(0, self.adjustSize)
 
