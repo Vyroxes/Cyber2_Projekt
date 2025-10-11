@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QVBoxLayout, QFileDialog, QLabel, QMessageBox, QComboBox, QProgressBar, QGroupBox, QHBoxLayout
-from PyQt5.QtWinExtras import QWinTaskbarButton, QWinTaskbarProgress
+from PyQt5.QtWinExtras import QWinTaskbarButton
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtCore import QThread, pyqtSignal
 from PyQt5.QtGui import QIcon
@@ -10,6 +10,9 @@ from Crypto.Hash import SHA256, HMAC
 from skein import skein256, skein512, skein1024, threefish
 import os
 import sys
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 class EncryptDecryptThread(QThread):
     progress_signal = pyqtSignal(int)
@@ -42,7 +45,24 @@ class EncryptDecryptThread(QThread):
                     raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz ma długość " + str(len(key) * 8) + "-bitów.")
 
                 if self.decrypt:
-                    if self.mode == "EAX-MAC":
+                    if self.mode == "GCM":
+                        nonce, tag, ciphertext = data[:12], data[-16:], data[12:-16]
+                        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+                        decrypted_data = b""
+                        for i in range(0, len(ciphertext), chunk_size):
+                            chunk = ciphertext[i:i + chunk_size]
+                            decrypted_data += cipher.decrypt(chunk)
+                            processed_size += len(chunk)
+                            progress = int((processed_size / file_size) * 100)
+                            self.progress_signal.emit(progress)
+                        try:
+                            cipher.verify(tag)
+                            operation_message = "Plik został deszyfrowany!"
+                        except ValueError:
+                            decrypted_data = b""
+                            raise ValueError("Błąd: Nie udało się zweryfikować tagu MAC!")
+
+                    elif self.mode == "EAX-MAC":
                         nonce, tag, ciphertext = data[:16], data[16:32], data[32:]
                         cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
                         decrypted_data = b""
@@ -87,7 +107,20 @@ class EncryptDecryptThread(QThread):
                         decrypted_data = decrypted_data[:-padding_length]
                         operation_message = "Plik został deszyfrowany!"
                 else:
-                    if self.mode == "EAX-MAC":
+                    if self.mode == "GCM":
+                        nonce = get_random_bytes(12)
+                        cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+                        encrypted_data = b""
+                        for i in range(0, len(data), chunk_size):
+                            chunk = data[i:i + chunk_size]
+                            encrypted_data += cipher.encrypt(chunk)
+                            processed_size += len(chunk)
+                            progress = int((processed_size / file_size) * 100)
+                            self.progress_signal.emit(progress)
+                        encrypted_data = nonce + encrypted_data + cipher.digest()
+                        operation_message = "Plik został zaszyfrowany!"
+
+                    elif self.mode == "EAX-MAC":
                         cipher = AES.new(key, AES.MODE_EAX)
                         encrypted_data = b""
                         for i in range(0, len(data), chunk_size):
@@ -144,8 +177,15 @@ class EncryptDecryptThread(QThread):
                     chunk_size = key.size_in_bytes() - 11
 
                 if self.decrypt:
+                    if not key.has_private():
+                        raise ValueError("Błąd: Wybrany klucz nie jest kluczem prywatnym!")
+
                     hmac_received = data[:32]
                     encrypted_data = data[32:]
+
+                    hmac_key = key.publickey().export_key()
+                    if hmac_received != HMAC.new(hmac_key, encrypted_data, SHA256).digest():
+                        raise ValueError("Błąd: Nie udało się zweryfikować tagu HMAC!")
 
                     decrypted_data = b""
                     for i in range(0, len(encrypted_data), key.size_in_bytes()):
@@ -166,11 +206,10 @@ class EncryptDecryptThread(QThread):
                         progress = int((processed_size / file_size) * 100)
                         self.progress_signal.emit(progress)
 
-                    if hmac_received != HMAC.new(key.publickey().export_key(), decrypted_data, SHA256).digest():
-                        raise ValueError("Błąd: Nie udało się zweryfikować tagu HMAC!")
-
                     operation_message = "Plik został deszyfrowany!"
                 else:
+
+
                     encrypted_data = b""
                     for i in range(0, len(data), chunk_size):
                         chunk = data[i:i + chunk_size]
@@ -179,8 +218,9 @@ class EncryptDecryptThread(QThread):
                         progress = int((processed_size / file_size) * 100)
                         self.progress_signal.emit(progress)
 
-                    hmac = HMAC.new(key.export_key(), data, SHA256).digest()
-                    encrypted_data = hmac + encrypted_data
+                    hmac_key = key.export_key()
+                    hmac_tag = HMAC.new(hmac_key, encrypted_data, SHA256).digest()
+                    encrypted_data = hmac_tag + encrypted_data
                     operation_message = "Plik został zaszyfrowany!"
 
             elif self.algorithm == "3DES":
@@ -517,7 +557,7 @@ class FileEncryptor(QWidget):
         self.aes_mode_label = QLabel("Wybierz tryb AES:")
         aes_options_layout.addWidget(self.aes_mode_label)
         self.aes_mode_box = QComboBox()
-        self.aes_mode_box.addItems(["EAX-MAC", "CBC", "ECB"])
+        self.aes_mode_box.addItems(["GCM", "EAX-MAC", "CBC", "ECB"])
         aes_options_layout.addWidget(self.aes_mode_box)
         self.aes_options_widget.setLayout(aes_options_layout)
         additional_options_layout.addWidget(self.aes_options_widget)
@@ -852,9 +892,16 @@ class FileEncryptor(QWidget):
             QMessageBox.warning(self, "Błąd", "Wybierz plik!")
             return
         algorithm = self.algorithm_box.currentText()
+        MAX_AES_FILE_SIZE = 1024 * 1024 * 1024 * 64 # 64GB
+        MAX_RSA_FILE_SIZE = 1024 * 1024 # 1MB
+        MAX_3DES_FILE_SIZE = 1024 * 1024 * 1024 * 32 # 32GB
+        file_size = os.path.getsize(self.file_path)
         if algorithm == "RSA-HMAC":
             if not self.public_key_path:
                 QMessageBox.warning(self, "Błąd", "Wybierz klucz publiczny!")
+                return
+            if file_size > MAX_RSA_FILE_SIZE:
+                QMessageBox.warning(self, "Błąd", f"RSA-HMAC nie nadaje się do plików większych niż {MAX_RSA_FILE_SIZE // (1024*1024)} MB!")
                 return
             key_path = self.public_key_path
             mode = None
@@ -866,10 +913,16 @@ class FileEncryptor(QWidget):
                 return
             key_path = self.key_path
             if algorithm == "AES":
+                if file_size > MAX_AES_FILE_SIZE:
+                    QMessageBox.warning(self, "Błąd", f"AES nie nadaje się do plików większych niż {MAX_AES_FILE_SIZE // (1024*1024*1024)} GB!")
+                    return
                 mode = self.aes_mode_box.currentText()
                 key_size = int(self.aes_key_size_box.currentText())
                 padding = None
             elif algorithm == "3DES":
+                if file_size > MAX_3DES_FILE_SIZE:
+                    QMessageBox.warning(self, "Błąd", f"3DES nie nadaje się do plików większych niż {MAX_3DES_FILE_SIZE // (1024*1024*1024)} GB!")
+                    return
                 mode = self.des_mode_box.currentText()
                 key_size = 0
                 padding = None

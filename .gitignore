@@ -4,8 +4,14 @@ __pycache__/
 build/
 dist/
 *.spec
-Komenda.txt
 *.log
+*.txt
+*.key
+*.enc
+*.jpg
+*.png
 *.tmp
 venv/
 .env/
+*.pdf
+*.docx

@@ -38,8 +38,8 @@ Aplikacja umożliwia szyfrowanie i deszyfrowanie plików tekstowych, graficznych
 - **Rodzaj:** Symetryczny, blokowy
 - **Struktura:** Sieć Feistela z operacjami w polu GF(2⁸)
 - **Długość klucza w bitach:** 128, 192, 256
-- **Tryby:** EAX (Encrypt-then-Authenticate-then-Translate), CBC Cipher Block Chaining), ECB (Electronic Codebook)
-- **Sprawdzanie integralności plików**: tryb EAS - tag MAC (Message Authentication Code), tryby CBC oraz ECB - padding PKCS7
+- **Tryby:** GCM (Galois/Counter Mode), EAX (Encrypt-then-Authenticate-then-Translate), CBC Cipher Block Chaining), ECB (Electronic Codebook)
+- **Sprawdzanie integralności plików**: tryby  GCM oraz EAS - tag MAC (Message Authentication Code), tryby CBC oraz ECB - padding PKCS7
 
 ![AES 1](https://github.com/user-attachments/assets/e886e708-3506-4e16-b7c6-256dd724c763)
 
