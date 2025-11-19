@@ -143,7 +143,7 @@ Możliwość przeciągania i upuszczania pliku oraz klucza/kluczy bezpośrednio 
 
 ---
 
-## 🔏 Szyfrowanie i deszyfrowanie
+## 🔏 Szyfrowanie/deszyfrowanie
 
 Zaszyfrowany plik w rozszerzeniu `.enc`.
 
@@ -155,7 +155,7 @@ Błąd weryfikacji integralności danych podczas operacji deszyfrowania spowodow
 
 ---
 
-## ⏳ Funkcjonalny progress bar, integracja z paskiem zadań oraz możliwość anulowania operacji szyfrowania/deszyfrowania
+## ⏳ Funkcjonalny pasek postępu
 
 Możliwość anulowania operacji szyfrowania/deszyfrowania w dowolnym momencie.
 
@@ -175,7 +175,7 @@ Integracja paska postępu z paskiem zadań (Windows).
 
 ### 🔹 **Aplikacja wymaga następujących bibliotek**
 
-- `PyQt5` - biblioteka GUI dla Pythona.
+- `PyQt5` - biblioteka GUI.
 - `pycryptodome` - zestaw narzędzi kryptograficznych.
 - `skein` - implementacja algorytmów Skein.
 
