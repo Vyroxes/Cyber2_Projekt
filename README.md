@@ -1,6 +1,6 @@
-# 🔐 Praca inżynierska
+# 📋 Praca inżynierska
 
-## 🛠 System informatyczny do szyfrowania i deszyfrowania plików z weryfikacją integralności danych
+## 🔐 System informatyczny do szyfrowania i deszyfrowania plików z weryfikacją integralności danych
 
 System umożliwia szyfrowanie i deszyfrowanie plików różnego typu (tekstowych, graficznych, audio, wideo itd.) z wykorzystaniem wybranych algorytmów symetrycznych i asymetrycznych. Dodatkowo implementuje mechanizm weryfikacji integralności danych.
 
@@ -143,7 +143,7 @@ Możliwość przeciągania i upuszczania pliku oraz klucza/kluczy bezpośrednio 
 
 ---
 
-## 🔏 Szyfrowanie/deszyfrowanie
+## ⚙️ Szyfrowanie/deszyfrowanie
 
 Zaszyfrowany plik w rozszerzeniu `.enc`.
 
