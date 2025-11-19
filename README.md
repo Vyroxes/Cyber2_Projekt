@@ -143,17 +143,31 @@ Możliwość przeciągania i upuszczania pliku oraz klucza/kluczy bezpośrednio 
 
 ---
 
-## 🔏 Zaszyfrowany plik w rozszerzeniu `.enc`
+## 🔏 Szyfrowanie i deszyfrowanie
 
-![Zaszyfrowany plik](https://github.com/user-attachments/assets/016528f5-c610-40fa-bb58-e320fa2cbead)
+Zaszyfrowany plik w rozszerzeniu `.enc`.
+
+![Szyfrowanie](https://github.com/user-attachments/assets/016528f5-c610-40fa-bb58-e320fa2cbead)
+
+Błąd weryfikacji integralności danych podczas operacji deszyfrowania spowodowany modyfikacją pliku zaszyfrowanego.
+
+![Szyfrowanie 2](https://github.com/user-attachments/assets/15a0d35f-1e28-437e-b2e4-24b5d2ebd013)
 
 ---
 
-## ⏳ Funkcjonalny progress bar, integracja z paskiem zadań, oraz możliwość anulowania operacji szyfrowania/deszyfrowania
+## ⏳ Funkcjonalny progress bar, integracja z paskiem zadań oraz możliwość anulowania operacji szyfrowania/deszyfrowania
 
-![Progress bar](https://github.com/user-attachments/assets/132bae2a-6cad-4667-ae75-bdb9a457ffdd)
+Możliwość anulowania operacji szyfrowania/deszyfrowania w dowolnym momencie.
 
-![Progress bar 2](https://github.com/user-attachments/assets/4cfb24a2-45d5-4de5-9933-58d4be05b996)
+![Pasek](https://github.com/user-attachments/assets/b844c800-656c-471c-86d6-a294c0ff86f5)
+
+Funkcjonalny pasek postępu wyświetla graficzny i procentowy postęp operacji oraz ETA (Estimated Time of Arrival) - szacowany czas do zakończenia operacji szyfrowania/deszyfrowania.
+
+![Pasek 2](https://github.com/user-attachments/assets/042cd932-cafa-445a-935b-58d618f007c1)
+
+Integracja paska postępu z paskiem zadań (Windows).
+
+![Pasek 3](https://github.com/user-attachments/assets/4cfb24a2-45d5-4de5-9933-58d4be05b996)
 
 ---
 
