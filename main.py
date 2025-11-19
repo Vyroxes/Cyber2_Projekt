@@ -111,7 +111,7 @@ def overwrite_with_random(path, chunk_size=4*1024*1024):
         f.flush()
         os.fsync(f.fileno())
 
-def hybrid_crypto_erase(path, chunk_size=1024*1024, passes_for_hdd_overwrite=1, do_retrim=True):
+def hybrid_crypto_erase(path, chunk_size=1024*1024, passes_for_hdd_overwrite=2, do_retrim=True):
     if not os.path.exists(path):
         return False, "Plik nie istnieje"
     dirn = os.path.dirname(os.path.abspath(path)) or "."
