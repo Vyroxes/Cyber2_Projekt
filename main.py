@@ -8,6 +8,7 @@ from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Hash import SHA256, HMAC
 from skein import skein256, skein512, skein1024, threefish
+import psutil
 import subprocess
 import tempfile
 import winreg
@@ -162,7 +163,7 @@ def hybrid_crypto_erase(path, chunk_size=1024*1024, passes_for_hdd_overwrite=2, 
         return False, f"Błąd: {e}"
 
 class EncryptDecryptThread(QThread):
-    progress_signal = pyqtSignal(int, int)
+    progress_signal = pyqtSignal(int, int, float)
     finished_signal = pyqtSignal(str)
 
     def __init__(self, file_path, key_path, algorithm, mode, padding, key_size, decrypt=False, save_path=None):
@@ -176,6 +177,8 @@ class EncryptDecryptThread(QThread):
         self.decrypt = decrypt
         self.save_path = save_path
         self._stop_requested = False
+        self._ram_samples_count = 0
+        self._ram_sum_mb = 0.0
 
     def request_stop(self):
         self._stop_requested = True
@@ -189,9 +192,16 @@ class EncryptDecryptThread(QThread):
                 eta = int(remaining / rate) if rate > 0 else -1
             else:
                 eta = -1
+            proc = psutil.Process(os.getpid())
+            rss_bytes = proc.memory_info().rss
+            rss_mb = rss_bytes / (1024 * 1024)
+            self._ram_samples_count += 1
+            self._ram_sum_mb += rss_mb
+            avg_ram_mb = self._ram_sum_mb / self._ram_samples_count
         except Exception:
             eta = -1
-        self.progress_signal.emit(int(progress), int(eta))
+            avg_ram_mb = self._ram_sum_mb / max(1, self._ram_samples_count)
+        self.progress_signal.emit(int(progress), int(eta), float(avg_ram_mb))
 
     def closeEvent(self, event):
         self.settings.setValue("recent_files", self.recent_files)
@@ -246,7 +256,7 @@ class EncryptDecryptThread(QThread):
                             self.emit_progress(processed_size, file_size, progress)
                         try:
                             cipher.verify(tag)
-                            operation_message = "Plik został deszyfrowany!"
+                            operation_message = "Sukces: Plik został deszyfrowany!"
                         except ValueError:
                             decrypted_data = b""
                             raise ValueError("Błąd: Nie udało się zweryfikować tagu MAC!")
@@ -267,7 +277,7 @@ class EncryptDecryptThread(QThread):
                             self.emit_progress(processed_size, file_size, progress)
                         try:
                             cipher.verify(tag)
-                            operation_message = "Plik został deszyfrowany!"
+                            operation_message = "Sukces: Plik został deszyfrowany!"
                         except ValueError:
                             decrypted_data = b""
                             raise ValueError("Błąd: Nie udało się zweryfikować tagu MAC!")
@@ -288,7 +298,7 @@ class EncryptDecryptThread(QThread):
                             self.emit_progress(processed_size, file_size, progress)
                         padding_length = decrypted_data[-1]
                         decrypted_data = decrypted_data[:-padding_length]
-                        operation_message = "Plik został deszyfrowany!"
+                        operation_message = "Sukces: Plik został deszyfrowany!"
 
                     elif self.mode == "ECB":
                         ciphertext = data
@@ -306,7 +316,7 @@ class EncryptDecryptThread(QThread):
                             self.emit_progress(processed_size, file_size, progress)
                         padding_length = decrypted_data[-1]
                         decrypted_data = decrypted_data[:-padding_length]
-                        operation_message = "Plik został deszyfrowany!"
+                        operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
@@ -327,7 +337,7 @@ class EncryptDecryptThread(QThread):
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
                         encrypted_data = nonce + encrypted_data + cipher.digest()
-                        operation_message = "Plik został zaszyfrowany!"
+                        operation_message = "Sukces: Plik został zaszyfrowany!"
 
                     elif self.mode == "EAX-MAC":
                         cipher = AES.new(key, AES.MODE_EAX)
@@ -343,7 +353,7 @@ class EncryptDecryptThread(QThread):
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
                         encrypted_data = cipher.nonce + cipher.digest() + encrypted_data
-                        operation_message = "Plik został zaszyfrowany!"
+                        operation_message = "Sukces: Plik został zaszyfrowany!"
 
                     elif self.mode == "CBC":
                         iv = get_random_bytes(16)
@@ -362,7 +372,7 @@ class EncryptDecryptThread(QThread):
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
                         encrypted_data = iv + encrypted_data
-                        operation_message = "Plik został zaszyfrowany!"
+                        operation_message = "Sukces: Plik został zaszyfrowany!"
 
                     elif self.mode == "ECB":
                         cipher = AES.new(key, AES.MODE_ECB)
@@ -379,7 +389,7 @@ class EncryptDecryptThread(QThread):
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        operation_message = "Plik został zaszyfrowany!"
+                        operation_message = "Sukces: Plik został zaszyfrowany!"
 
             elif self.algorithm == "RSA-HMAC":
                 with open(self.key_path, "rb") as f:
@@ -440,7 +450,7 @@ class EncryptDecryptThread(QThread):
                         progress = int((processed_size / file_size) * 100)
                         self.emit_progress(processed_size, file_size, progress)
 
-                    operation_message = "Plik został deszyfrowany!"
+                    operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
@@ -461,7 +471,7 @@ class EncryptDecryptThread(QThread):
                     hmac_key = key.export_key()
                     hmac_tag = HMAC.new(hmac_key, encrypted_data, SHA256).digest()
                     encrypted_data = hmac_tag + encrypted_data
-                    operation_message = "Plik został zaszyfrowany!"
+                    operation_message = "Sukces: Plik został zaszyfrowany!"
 
             elif self.algorithm == "3DES":
                 with open(self.key_path, "rb") as f:
@@ -495,7 +505,7 @@ class EncryptDecryptThread(QThread):
                             self.emit_progress(processed_size, file_size, progress)
                         try:
                             cipher.verify(tag)
-                            operation_message = "Plik został deszyfrowany!"
+                            operation_message = "Sukces: Plik został deszyfrowany!"
                         except ValueError:
                             raise ValueError("Błąd: Nie udało się zweryfikować tagu MAC!")
                         
@@ -513,7 +523,7 @@ class EncryptDecryptThread(QThread):
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        operation_message = "Plik został deszyfrowany!"
+                        operation_message = "Sukces: Plik został deszyfrowany!"
                     elif self.mode == "OFB":
                         iv, ciphertext = data[:8], data[8:]
                         cipher = DES3.new(key, DES3.MODE_OFB, iv=iv)
@@ -528,7 +538,7 @@ class EncryptDecryptThread(QThread):
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        operation_message = "Plik został deszyfrowany!"
+                        operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
@@ -548,7 +558,7 @@ class EncryptDecryptThread(QThread):
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
                         encrypted_data = cipher.nonce + cipher.digest() + encrypted_data
-                        operation_message = "Plik został zaszyfrowany!"
+                        operation_message = "Sukces: Plik został zaszyfrowany!"
                     elif self.mode == "CFB":
                         iv = get_random_bytes(8)
                         cipher = DES3.new(key, DES3.MODE_CFB, iv=iv)
@@ -563,7 +573,7 @@ class EncryptDecryptThread(QThread):
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        operation_message = "Plik został zaszyfrowany!"
+                        operation_message = "Sukces: Plik został zaszyfrowany!"
                     elif self.mode == "OFB":
                         iv = get_random_bytes(8)
                         cipher = DES3.new(key, DES3.MODE_OFB, iv=iv)
@@ -578,7 +588,7 @@ class EncryptDecryptThread(QThread):
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        operation_message = "Plik został zaszyfrowany!"
+                        operation_message = "Sukces: Plik został zaszyfrowany!"
 
             elif self.algorithm == "XChaCha20-Poly1305":
                 with open(self.key_path, "rb") as f:
@@ -609,7 +619,7 @@ class EncryptDecryptThread(QThread):
                         self.emit_progress(processed_size, file_size, progress)
                     try:
                         cipher.verify(tag)
-                        operation_message = "Plik został deszyfrowany!"
+                        operation_message = "Sukces: Plik został deszyfrowany!"
                     except ValueError:
                         raise ValueError("Błąd: Nie udało się zweryfikować tagu Poly1305!")
                 else:
@@ -632,7 +642,7 @@ class EncryptDecryptThread(QThread):
                         self.emit_progress(processed_size, file_size, progress)
                     tag = cipher.digest()
                     encrypted_data = nonce + encrypted_data + tag
-                    operation_message = "Plik został zaszyfrowany!"
+                    operation_message = "Sukces: Plik został zaszyfrowany!"
                     
             elif self.algorithm == "Threefish-Skein":
                 with open(self.key_path, "rb") as f:
@@ -692,7 +702,7 @@ class EncryptDecryptThread(QThread):
                     calculated_hash = hash_func(decrypted_data).digest()
                     if calculated_hash != tag:
                         raise ValueError("Błąd: Nie udało się zweryfikować tagu Skein!")
-                    operation_message = "Plik został deszyfrowany!"
+                    operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
@@ -727,7 +737,7 @@ class EncryptDecryptThread(QThread):
                         
                     tag = hash_func(data).digest()
                     encrypted_data = nonce + encrypted_data + tag
-                    operation_message = "Plik został zaszyfrowany!"
+                    operation_message = "Sukces: Plik został zaszyfrowany!"
 
             if self.decrypt:
                 if getattr(self, "_stop_requested", False):
@@ -746,14 +756,15 @@ class EncryptDecryptThread(QThread):
                 with open(enc_path, "wb") as f:
                     f.write(encrypted_data)
 
-            self.progress_signal.emit(100, 0)
+            self.progress_signal.emit(100, 0, self._ram_sum_mb / max(1, self._ram_samples_count))
             try:
                 elapsed = int(time.time() - getattr(self, "_start_time", time.time()))
                 h = elapsed // 3600
                 m = (elapsed % 3600) // 60
                 s = elapsed % 60
+                avg_ram_mb = self._ram_sum_mb / max(1, self._ram_samples_count)
                 if "zaszyfrowany" in operation_message or "deszyfrowany" in operation_message:
-                    operation_message = f"{operation_message} (czas: {h:02d}:{m:02d}:{s:02d})"
+                    operation_message = f"{operation_message} (czas: {h:02d}:{m:02d}:{s:02d}, średnie użycie RAM: {avg_ram_mb:.2f} MB)"
             except Exception:
                 pass
             self.finished_signal.emit(operation_message)
@@ -1880,6 +1891,7 @@ class FileEncryptor(QWidget):
 
         MAX_AES_FILE_SIZE = 1024 * 1024 * 1024 * 64 # 64GB
         MAX_RSA_FILE_SIZE = 1024 * 1024 # 1MB
+        MAX_3DES_EAX_FILE_SIZE = 1024 * 1024 * 10 # 10MB
         MAX_3DES_FILE_SIZE = 1024 * 1024 * 1024 * 32 # 32GB
         file_size = os.path.getsize(self.file_path)
 
@@ -1893,9 +1905,14 @@ class FileEncryptor(QWidget):
                     QMessageBox.warning(self, "Błąd", f"AES nie nadaje się do plików większych niż {MAX_AES_FILE_SIZE // (1024*1024*1024)} GB!")
                     return
             elif algorithm == "3DES":
-                if file_size > MAX_3DES_FILE_SIZE:
-                    QMessageBox.warning(self, "Błąd", f"3DES nie nadaje się do plików większych niż {MAX_3DES_FILE_SIZE // (1024*1024*1024)} GB!")
-                    return
+                if mode == "EAX-MAC":
+                    if file_size > MAX_3DES_EAX_FILE_SIZE:
+                        QMessageBox.warning(self, "Błąd", f"3DES w trybie EAX nie nadaje się do plików większych niż {MAX_3DES_EAX_FILE_SIZE // (1024*1024)} MB!")
+                        return
+                else:
+                    if file_size > MAX_3DES_FILE_SIZE:
+                        QMessageBox.warning(self, "Błąd", f"3DES nie nadaje się do plików większych niż {MAX_3DES_FILE_SIZE // (1024*1024*1024)} GB!")
+                        return
 
         if os.path.splitext(os.path.basename(self.file_path))[1] == '.enc':
             QMessageBox.warning(self, "Błąd", "Plik już jest zaszyfrowany!")
@@ -2005,7 +2022,7 @@ class FileEncryptor(QWidget):
         self.thread.finished_signal.connect(self.operation_finished)
         self.thread.start()
 
-    def update_progress(self, value, eta_seconds):
+    def update_progress(self, value, eta_seconds, avg_ram_mb):
         self.progress_bar.setValue(value)
         if value > 0:
             self.taskbar_progress.setVisible(True)
@@ -2057,8 +2074,10 @@ class FileEncryptor(QWidget):
             QMessageBox.critical(self, "Błąd", message.replace("Błąd: ", ""))
         elif "Info" in message:
             QMessageBox.information(self, "Informacja", message.replace("Info: ", ""))
+        elif "Sukces" in message:
+            QMessageBox.information(self, "Sukces", message.replace("Sukces: ", ""))
         else:
-            QMessageBox.information(self, "Sukces", message)
+            QMessageBox.information(self, "Błąd", message)
 
         if "zaszyfrowany" in message:
             dialog = QMessageBox(self)

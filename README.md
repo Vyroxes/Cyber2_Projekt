@@ -76,7 +76,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Długość klucza w bitach:** 192.
 - **Tryby:** EAX (Encrypt-then-Authenticate-then-Translate), CFB (Cipher Feedback), OFB (Output Feedback).
 - **Sprawdzanie integralności plików**: tryb EAX - tag MAC (Message Authentication Code).
-- **Maksymalny rozmiar pliku**: 32 GB.
+- **Maksymalny rozmiar pliku**: tryb EAX - 10 MB, tryby CFB oraz OFB - 32 GB.
 
 ![3DES](https://github.com/user-attachments/assets/af48a252-52f1-4f31-8e93-870b5ebc7d9d)
 
@@ -178,11 +178,12 @@ Integracja paska postępu z paskiem zadań (Windows).
 - `PyQt5` - biblioteka GUI.
 - `pycryptodome` - zestaw narzędzi kryptograficznych.
 - `skein` - implementacja algorytmów Skein.
+- `psutil` - zarządzanie zasobami systemu.
 
 
 ### 🔹 **Instalacja zależności**
   ```bash
-  pip install PyQt5 pycryptodome skein
+  pip install PyQt5 pycryptodome skein psutil
   ```
 
   ```bash
