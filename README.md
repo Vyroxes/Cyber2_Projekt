@@ -47,7 +47,8 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Struktura:** Sieć Feistela z operacjami w polu GF(2⁸).
 - **Długość klucza w bitach:** 128, 192, 256.
 - **Tryby:** GCM (Galois/Counter Mode), EAX (Encrypt-then-Authenticate-then-Translate), CBC (Cipher Block Chaining), ECB (Electronic Codebook).
-- **Sprawdzanie integralności plików**: tryby  GCM oraz EAS - tag MAC (Message Authentication Code), tryby CBC oraz ECB - padding PKCS7.
+- **Padding:** tryby CBC i ECB - PKCS7.
+- **Sprawdzanie integralności plików**: tryby  AEAD (GCM, EAX) - tag MAC (Message Authentication Code).
 - **Maksymalny rozmiar pliku**: 64 GB.
 
 ![AES](https://github.com/user-attachments/assets/e29ded45-be4d-4019-8139-d7976b2b1c31)
@@ -60,7 +61,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Rodzaj:** Asymetryczny.
 - **Struktura:** Oparty na trudności faktoryzacji dużych liczb pierwszych.
 - **Długość klucza w bitach:** 1024, 2048, 3072, 4096.
-- **Padding:** PKCS1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding).
+- **Padding:** PKCS#1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding).
 - **Sprawdzanie integralności plików**: tag HMAC (Hash-based Message Authentication Code).
 - **Maksymalny rozmiar pliku**: 1 MB.
 
@@ -84,7 +85,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 
 ### 🔹 **XChaCha20-Poly1305**
 - **Rodzaj:** Symetryczny, strumieniowy.
-- **Struktura:** Macierze i operacje XOR.
+- **Struktura:** Operacje XOR na macierzach i wektorach.
 - **Długość klucza w bitach:** 256.
 - **Sprawdzanie integralności plików**: tag Poly1305.
 - **Maksymalny rozmiar pliku**: praktycznie nieograniczony (setki TB do PB).
