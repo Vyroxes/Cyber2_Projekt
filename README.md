@@ -73,7 +73,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 
 ### 🔹 **3DES (Triple Data Encryption Standard)**
 - **Rodzaj:** Symetryczny, blokowy.
-- **Struktura:** Sieć Feistela (DES zastosowany 3x w schemacie EDE).
+- **Struktura:** Sieć Feistela (DES zastosowany 3x w schemacie EDE - encrypt-decrypt-encrypt).
 - **Długość klucza w bitach:** 192.
 - **Tryby:** EAX - AEAD, CFB (Cipher Feedback), OFB (Output Feedback).
 - **Sprawdzanie integralności plików**: tryb AEAD (EAX) - tag MAC (Message Authentication Code).
