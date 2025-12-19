@@ -6,9 +6,10 @@ from PyQt5.QtGui import QIcon, QBrush, QColor
 from Crypto.Cipher import AES, DES3, PKCS1_OAEP, PKCS1_v1_5, ChaCha20_Poly1305
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
-from Crypto.Hash import SHA256, HMAC
+from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import HKDF
-from skein import skein256, skein512, skein1024, threefish
+from Crypto.Signature import pss
+from skein import skein256, skein512, skein1024, StreamCipher
 import hmac
 import psutil
 import subprocess
@@ -168,10 +169,11 @@ class EncryptDecryptThread(QThread):
     progress_signal = pyqtSignal(int, int, float)
     finished_signal = pyqtSignal(str)
 
-    def __init__(self, file_path, key_path, algorithm, mode, padding, key_size, decrypt=False, save_path=None):
+    def __init__(self, file_path, key_path, public_key_path, algorithm, mode, padding, key_size, decrypt=False, save_path=None):
         super().__init__()
         self.file_path = file_path
         self.key_path = key_path
+        self.public_key_path = public_key_path
         self.algorithm = algorithm
         self.mode = mode
         self.padding = padding
@@ -242,82 +244,113 @@ class EncryptDecryptThread(QThread):
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
+                    
                     if self.mode == "GCM-MAC":
+                        if len(data) < 12 + 16:
+                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
+
                         nonce, tag, ciphertext = data[:12], data[-16:], data[12:-16]
                         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-                        decrypted_data = b""
+
+                        decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = ciphertext[i:i + chunk_size]
-                            decrypted_data += cipher.decrypt(chunk)
+                            decrypted_chunks.append(cipher.decrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
                         try:
                             cipher.verify(tag)
-                            operation_message = "Sukces: Plik został deszyfrowany!"
                         except ValueError:
-                            decrypted_data = b""
                             raise ValueError("Błąd: Nie udało się zweryfikować tagu MAC!")
+                        
+                        decrypted_data = b"".join(decrypted_chunks)
+                        operation_message = "Sukces: Plik został deszyfrowany!"
 
                     elif self.mode == "EAX-MAC":
+                        if len(data) < 16 + 16:
+                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
+
                         nonce, tag, ciphertext = data[:16], data[16:32], data[32:]
                         cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
-                        decrypted_data = b""
+
+                        decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = ciphertext[i:i + chunk_size]
-                            decrypted_data += cipher.decrypt(chunk)
+                            decrypted_chunks.append(cipher.decrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
                         try:
                             cipher.verify(tag)
-                            operation_message = "Sukces: Plik został deszyfrowany!"
                         except ValueError:
-                            decrypted_data = b""
                             raise ValueError("Błąd: Nie udało się zweryfikować tagu MAC!")
+                        
+                        decrypted_data = b"".join(decrypted_chunks)
+                        operation_message = "Sukces: Plik został deszyfrowany!"
 
                     elif self.mode == "CBC":
+                        if len(data) < 16 + 16:
+                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
+
+                        if len(ciphertext) % 16 != 0:
+                            raise ValueError("Błąd: Uszkodzony format CBC!")
+
                         iv, ciphertext = data[:16], data[16:]
                         cipher = AES.new(key, AES.MODE_CBC, iv=iv)
-                        decrypted_data = b""
+
+                        decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = ciphertext[i:i + chunk_size]
-                            decrypted_data += cipher.decrypt(chunk)
+                            decrypted_chunks.append(cipher.decrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        padding_length = decrypted_data[-1]
-                        decrypted_data = decrypted_data[:-padding_length]
+                        decrypted_data = b"".join(decrypted_chunks)
+                        pad = decrypted_data[-1]
+                        if pad < 1 or pad > 16 or decrypted_data[-pad:] != bytes([pad]) * pad:
+                            raise ValueError("Błąd: Nieprawidłowy padding!")
+                        decrypted_data = decrypted_data[:-pad]
                         operation_message = "Sukces: Plik został deszyfrowany!"
 
                     elif self.mode == "ECB":
+                        if len(ciphertext) < 16:
+                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
+                        
+                        if len(ciphertext) % 16 != 0:
+                            raise ValueError("Błąd: Uszkodzony format ECB!")
+
                         ciphertext = data
                         cipher = AES.new(key, AES.MODE_ECB)
-                        decrypted_data = b""
+                        
+                        decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = ciphertext[i:i + chunk_size]
-                            decrypted_data += cipher.decrypt(chunk)
+                            decrypted_chunks.append(cipher.decrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        padding_length = decrypted_data[-1]
-                        decrypted_data = decrypted_data[:-padding_length]
+                        decrypted_data = b"".join(decrypted_chunks)
+                        pad = decrypted_data[-1]
+                        if pad < 1 or pad > 16 or decrypted_data[-pad:] != bytes([pad]) * pad:
+                            raise ValueError("Błąd: Nieprawidłowy padding!")
+                        decrypted_data = decrypted_data[:-pad]
                         operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
@@ -327,34 +360,37 @@ class EncryptDecryptThread(QThread):
                     if self.mode == "GCM-MAC":
                         nonce = get_random_bytes(12)
                         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
-                        encrypted_data = b""
+
+                        encrypted_chunks = []
                         for i in range(0, len(data), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = data[i:i + chunk_size]
-                            encrypted_data += cipher.encrypt(chunk)
+                            encrypted_chunks.append(cipher.encrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        encrypted_data = nonce + encrypted_data + cipher.digest()
+                        encrypted_data = nonce + b"".join(encrypted_chunks) + cipher.digest()
                         operation_message = "Sukces: Plik został zaszyfrowany!"
 
                     elif self.mode == "EAX-MAC":
-                        cipher = AES.new(key, AES.MODE_EAX)
-                        encrypted_data = b""
+                        nonce = get_random_bytes(16)
+                        cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
+
+                        encrypted_chunks = []
                         for i in range(0, len(data), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = data[i:i + chunk_size]
-                            encrypted_data += cipher.encrypt(chunk)
+                            encrypted_chunks.append(cipher.encrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        encrypted_data = cipher.nonce + cipher.digest() + encrypted_data
+                        encrypted_data = nonce + cipher.digest() + b"".join(encrypted_chunks)
                         operation_message = "Sukces: Plik został zaszyfrowany!"
 
                     elif self.mode == "CBC":
@@ -362,117 +398,148 @@ class EncryptDecryptThread(QThread):
                         cipher = AES.new(key, AES.MODE_CBC, iv=iv)
                         padding_length = 16 - (len(data) % 16)
                         data += bytes([padding_length]) * padding_length
-                        encrypted_data = b""
+
+                        encrypted_chunks = []
                         for i in range(0, len(data), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = data[i:i + chunk_size]
-                            encrypted_data += cipher.encrypt(chunk)
+                            encrypted_chunks.append(cipher.encrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        encrypted_data = iv + encrypted_data
+                        encrypted_data = iv + b"".join(encrypted_chunks)
                         operation_message = "Sukces: Plik został zaszyfrowany!"
 
                     elif self.mode == "ECB":
                         cipher = AES.new(key, AES.MODE_ECB)
                         padding_length = 16 - (len(data) % 16)
                         data += bytes([padding_length]) * padding_length
-                        encrypted_data = b""
+
+                        encrypted_chunks = []
                         for i in range(0, len(data), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = data[i:i + chunk_size]
-                            encrypted_data += cipher.encrypt(chunk)
+                            encrypted_chunks.append(cipher.encrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
+                        encrypted_data = b"".join(encrypted_chunks)
                         operation_message = "Sukces: Plik został zaszyfrowany!"
 
-            elif self.algorithm == "RSA-HMAC":
+            elif self.algorithm == "RSA-PSS":
                 with open(self.key_path, "rb") as f:
-                    key = RSA.import_key(f.read())
+                    priv = RSA.import_key(f.read())
+
+                with open(self.public_key_path, "rb") as f:
+                    pub = RSA.import_key(f.read())
 
                 if getattr(self, "_stop_requested", False):
                     self.finished_signal.emit("Info: Operacja została anulowana.")
                     return
                 
-                key_size_bits = key.size_in_bits()
-                if key_size_bits != self.key_size or key_size_bits not in (1024, 2048, 3072, 4096):
-                    raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz ma długość " + str(key_size_bits) + "-bitów.")
-                if not self.decrypt and key.has_private():
-                    key = key.publickey()
+                if not priv.has_private():
+                    raise ValueError("Błąd: Wybrany klucz nie jest kluczem prywatnym!")
+                
+                if pub.has_private():
+                    raise ValueError("Błąd: Wybrany klucz nie jest kluczem publicznym!")
+
+                k_pub = pub.size_in_bytes()
+                k_priv = priv.size_in_bytes()
+
+                if k_pub != k_priv:
+                    raise ValueError("Błąd: Klucz publiczny i prywatny mają różne rozmiary!")
+                
+                k = k_pub
+
+                if k*8 != self.key_size or k*8 not in (1024, 2048, 3072, 4096):
+                    raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz ma długość " + str(k*8) + "-bitów.")
 
                 if self.padding == "OAEP":
-                    cipher = PKCS1_OAEP.new(key)
-                    chunk_size = key.size_in_bytes() - 42
+                    enc_cipher = PKCS1_OAEP.new(pub)
+                    dec_cipher = PKCS1_OAEP.new(priv)
+                    chunk_size = k - 42
                 elif self.padding == "PKCS1 v1.5":
-                    cipher = PKCS1_v1_5.new(key)
-                    chunk_size = key.size_in_bytes() - 11
+                    enc_cipher = PKCS1_v1_5.new(pub)
+                    dec_cipher = PKCS1_v1_5.new(priv)
+                    chunk_size = k - 11
 
                 if self.decrypt:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
 
-                    if not key.has_private():
-                        raise ValueError("Błąd: Wybrany klucz nie jest kluczem prywatnym!")
+                    if len(data) < k:
+                        raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
 
-                    hmac_received = data[:32]
-                    encrypted_data = data[32:]
+                    signature = data[:k]
+                    encrypted_data = data[k:]
 
-                    hmac_key = key.publickey().export_key()
-                    if hmac_received != HMAC.new(hmac_key, encrypted_data, SHA256).digest():
-                        raise ValueError("Błąd: Nie udało się zweryfikować tagu HMAC!")
+                    if len(encrypted_data) % k != 0:
+                        raise ValueError("Błąd: Integralność pliku nie została zachowana!")
 
-                    decrypted_data = b""
-                    for i in range(0, len(encrypted_data), key.size_in_bytes()):
+                    h = SHA256.new(encrypted_data)
+                    verifier = pss.new(pub)
+                    try:
+                        verifier.verify(h, signature)
+                    except (ValueError, TypeError):
+                        raise ValueError("Błąd: Nie udało się zweryfikować podpisu PSS!")
+
+                    decrypted_chunks = []
+                    for i in range(0, len(encrypted_data), k):
                         if getattr(self, "_stop_requested", False):
                             self.finished_signal.emit("Info: Operacja została anulowana.")
                             return
 
-                        chunk = encrypted_data[i:i + key.size_in_bytes()]
+                        chunk = encrypted_data[i:i + k]
+
                         if self.padding == "PKCS1 v1.5":
                             sentinel = b"ERROR"
-                            decrypted_chunk = cipher.decrypt(chunk, sentinel)
-                            if decrypted_chunk == sentinel:
-                                raise ValueError("Błąd: Integralność pliku nie została zachowana!")
+                            pt = dec_cipher.decrypt(chunk, sentinel)
+                            if pt == sentinel:
+                                raise ValueError("Błąd: Uszkodzony plik!")
                             
                         elif self.padding == "OAEP":
                             try:
-                                decrypted_chunk = cipher.decrypt(chunk)
+                                pt = dec_cipher.decrypt(chunk)
                             except ValueError:
-                                raise ValueError("Błąd: Integralność pliku nie została zachowana!")
-                        decrypted_data += decrypted_chunk
+                                raise ValueError("Błąd: Uszkodzony plik!")
+                            
+                        decrypted_chunks.append(pt)
                         processed_size += len(chunk)
                         progress = int((processed_size / file_size) * 100)
                         self.emit_progress(processed_size, file_size, progress)
 
+                    decrypted_data = b"".join(decrypted_chunks)
                     operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
 
-                    encrypted_data = b""
+                    encrypted_chunks = []
                     for i in range(0, len(data), chunk_size):
                         if getattr(self, "_stop_requested", False):
                             self.finished_signal.emit("Info: Operacja została anulowana.")
                             return
 
                         chunk = data[i:i + chunk_size]
-                        encrypted_data += cipher.encrypt(chunk)
+                        encrypted_chunks.append(enc_cipher.encrypt(chunk))
                         processed_size += len(chunk)
                         progress = int((processed_size / file_size) * 100)
                         self.emit_progress(processed_size, file_size, progress)
 
-                    hmac_key = key.export_key()
-                    hmac_tag = HMAC.new(hmac_key, encrypted_data, SHA256).digest()
-                    encrypted_data = hmac_tag + encrypted_data
+                    encrypted_data = b"".join(encrypted_chunks)
+                    h = SHA256.new(encrypted_data)
+                    signer = pss.new(priv)
+                    signature = signer.sign(h)
+
+                    encrypted_data = signature + encrypted_data
                     operation_message = "Sukces: Plik został zaszyfrowany!"
 
             elif self.algorithm == "3DES":
@@ -492,54 +559,70 @@ class EncryptDecryptThread(QThread):
                         return
 
                     if self.mode == "EAX-MAC":
+                        if len(data) < 16 + 16:
+                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
+
                         nonce, tag, ciphertext = data[:16], data[16:24], data[24:]
-                        cipher = DES3.new(key, DES3.MODE_EAX, nonce=nonce)
-                        decrypted_data = b""
+                        cipher = DES3.new(key, DES3.MODE_EAX, nonce=nonce, mac_len=8)
+
+                        decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = ciphertext[i:i + chunk_size]
-                            decrypted_data += cipher.decrypt(chunk)
+                            decrypted_chunks.append(cipher.decrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
                         try:
                             cipher.verify(tag)
-                            operation_message = "Sukces: Plik został deszyfrowany!"
                         except ValueError:
                             raise ValueError("Błąd: Nie udało się zweryfikować tagu MAC!")
+                        decrypted_data = b"".join(decrypted_chunks)
+                        operation_message = "Sukces: Plik został deszyfrowany!"
                         
                     elif self.mode == "CFB":
+                        if len(data) < 8:
+                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
+
                         iv, ciphertext = data[:8], data[8:]
                         cipher = DES3.new(key, DES3.MODE_CFB, iv=iv)
-                        decrypted_data = b""
+
+                        decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = ciphertext[i:i + chunk_size]
-                            decrypted_data += cipher.decrypt(chunk)
+                            decrypted_chunks.append(cipher.decrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
+                        decrypted_data = b"".join(decrypted_chunks)
                         operation_message = "Sukces: Plik został deszyfrowany!"
+
                     elif self.mode == "OFB":
+                        if len(data) < 8:
+                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
+
                         iv, ciphertext = data[:8], data[8:]
                         cipher = DES3.new(key, DES3.MODE_OFB, iv=iv)
-                        decrypted_data = b""
+
+                        decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = ciphertext[i:i + chunk_size]
-                            decrypted_data += cipher.decrypt(chunk)
+                            decrypted_chunks.append(cipher.decrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
+                        decrypted_data = b"".join(decrypted_chunks)
                         operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
@@ -547,49 +630,58 @@ class EncryptDecryptThread(QThread):
                         return
 
                     if self.mode == "EAX-MAC":
-                        cipher = DES3.new(key, DES3.MODE_EAX)
-                        encrypted_data = b""
+                        cipher = DES3.new(key, DES3.MODE_EAX, mac_len=8)
+
+                        encrypted_chunks = []
                         for i in range(0, len(data), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = data[i:i + chunk_size]
-                            encrypted_data += cipher.encrypt(chunk)
+                            encrypted_chunks.append(cipher.encrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
-                        encrypted_data = cipher.nonce + cipher.digest() + encrypted_data
+                        encrypted_data = cipher.nonce + cipher.digest() + b"".join(encrypted_chunks)
                         operation_message = "Sukces: Plik został zaszyfrowany!"
+
                     elif self.mode == "CFB":
                         iv = get_random_bytes(8)
                         cipher = DES3.new(key, DES3.MODE_CFB, iv=iv)
                         encrypted_data = iv
+
+                        encrypted_chunks = []
                         for i in range(0, len(data), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = data[i:i + chunk_size]
-                            encrypted_data += cipher.encrypt(chunk)
+                            encrypted_chunks.append(cipher.encrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
+                        encrypted_data += b"".join(encrypted_chunks)
                         operation_message = "Sukces: Plik został zaszyfrowany!"
+
                     elif self.mode == "OFB":
                         iv = get_random_bytes(8)
                         cipher = DES3.new(key, DES3.MODE_OFB, iv=iv)
                         encrypted_data = iv
+
+                        encrypted_chunks = []
                         for i in range(0, len(data), chunk_size):
                             if getattr(self, "_stop_requested", False):
                                 self.finished_signal.emit("Info: Operacja została anulowana.")
                                 return
 
                             chunk = data[i:i + chunk_size]
-                            encrypted_data += cipher.encrypt(chunk)
+                            encrypted_chunks.append(cipher.encrypt(chunk))
                             processed_size += len(chunk)
                             progress = int((processed_size / file_size) * 100)
                             self.emit_progress(processed_size, file_size, progress)
+                        encrypted_data += b"".join(encrypted_chunks)
                         operation_message = "Sukces: Plik został zaszyfrowany!"
 
             elif self.algorithm == "XChaCha20-Poly1305":
@@ -602,28 +694,35 @@ class EncryptDecryptThread(QThread):
 
                 if len(key) != 32:
                     raise ValueError("Błąd: Nieprawidłowa długość klucza XChaCha20-Poly1305! Użyj klucza 256-bitowego.")
+                
                 if self.decrypt:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
+                    
+                    if len(data) < 24 + 16:
+                        raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
 
                     nonce, tag, ciphertext = data[:24], data[-16:], data[24:-16]
                     cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce)
-                    decrypted_data = b""
+                    
+                    decrypted_chunks = []
                     for i in range(0, len(ciphertext), chunk_size):
                         if getattr(self, "_stop_requested", False):
                             self.finished_signal.emit("Info: Operacja została anulowana.")
                             return
 
-                        decrypted_data += cipher.decrypt(ciphertext[i:i + chunk_size])
+                        decrypted_chunks.append(cipher.decrypt(ciphertext[i:i + chunk_size]))
                         processed_size += len(ciphertext[i:i + chunk_size])
                         progress = int((processed_size / file_size) * 100)
                         self.emit_progress(processed_size, file_size, progress)
                     try:
                         cipher.verify(tag)
-                        operation_message = "Sukces: Plik został deszyfrowany!"
                     except ValueError:
                         raise ValueError("Błąd: Nie udało się zweryfikować tagu Poly1305!")
+                    
+                    decrypted_data = b"".join(decrypted_chunks)
+                    operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
@@ -631,19 +730,20 @@ class EncryptDecryptThread(QThread):
 
                     nonce = get_random_bytes(24)
                     cipher = ChaCha20_Poly1305.new(key=key, nonce=nonce)
-                    encrypted_data = b""
+
+                    encrypted_chunks = []
                     for i in range(0, len(data), chunk_size):
                         if getattr(self, "_stop_requested", False):
                             self.finished_signal.emit("Info: Operacja została anulowana.")
                             return
 
                         chunk = data[i:i + chunk_size]
-                        encrypted_data += cipher.encrypt(chunk)
+                        encrypted_chunks.append(cipher.encrypt(chunk))
                         processed_size += len(chunk)
                         progress = int((processed_size / file_size) * 100)
                         self.emit_progress(processed_size, file_size, progress)
                     tag = cipher.digest()
-                    encrypted_data = nonce + encrypted_data + tag
+                    encrypted_data = nonce + b"".join(encrypted_chunks) + tag
                     operation_message = "Sukces: Plik został zaszyfrowany!"
                     
             elif self.algorithm == "Threefish-Skein-MAC":
@@ -662,7 +762,6 @@ class EncryptDecryptThread(QThread):
 
                 if len(key) != self.key_size//8 or len(key) not in (32, 64, 128):
                     raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz ma długość " + str(len(key) * 8) + "-bitów.")
-                tweak = bytes(15) + b"\x3f"
                 
                 if self.decrypt:
                     if getattr(self, "_stop_requested", False):
@@ -678,78 +777,73 @@ class EncryptDecryptThread(QThread):
                     else:
                         hash_func = skein1024
                         tag_size = 128
+
+                    if len(data) < 16 + tag_size:
+                        raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
                         
                     nonce, tag, ciphertext = data[:16], data[-tag_size:], data[16:-tag_size]
                     enc_key, mac_key = derive_subkeys(key, nonce)
+
                     aad = b"Threefish-Skein-MAC|v1|" + str(len(key)*8).encode() + b"|"
                     tag_input = aad + nonce + ciphertext
                     calculated_tag = hash_func(tag_input, key=mac_key).digest()
                     if not hmac.compare_digest(calculated_tag, tag):
                         raise ValueError("Błąd: Nie udało się zweryfikować tagu Skein-MAC!")
-                    decrypted_data = b""
-                    block_size = len(key)
-                    
-                    tf = threefish(enc_key, tweak)
-                    for i in range(0, len(ciphertext), block_size):
+
+                    sc = StreamCipher(key=enc_key, nonce=nonce, hasher=hash_func)
+
+                    cipher_chunks = []
+                    for i in range(0, len(ciphertext), chunk_size):
                         if getattr(self, "_stop_requested", False):
                             self.finished_signal.emit("Info: Operacja została anulowana.")
                             return
 
-                        chunk = ciphertext[i:i + block_size]
-                        if len(chunk) < block_size:
-                            chunk = chunk.ljust(block_size, b'\x00')
-                        decrypted_chunk = tf.decrypt_block(chunk)
-                        decrypted_data += decrypted_chunk[:min(len(chunk), len(ciphertext) - i)]
+                        chunk = ciphertext[i:i+chunk_size]
+                        cipher_chunks.append(sc.decrypt(chunk))
+
                         processed_size += len(chunk)
                         progress = int((processed_size / file_size) * 100)
                         self.emit_progress(processed_size, file_size, progress)
-                    
-                    if len(key) == 32:
-                        hash_func = skein256
-                    elif len(key) == 64:
-                        hash_func = skein512
-                    else:
-                        hash_func = skein1024
-                        
-                    decrypted_data = decrypted_data.rstrip(b'\x00')
+
+                    decrypted_data = b"".join(cipher_chunks) 
                     operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
 
-                    encrypted_data = b""
-                    block_size = len(key)
-                    nonce = get_random_bytes(16)
-                    enc_key, mac_key = derive_subkeys(key, nonce)
-                    
-                    tf = threefish(enc_key, tweak)
-                    
-                    for i in range(0, len(data), block_size):
-                        if getattr(self, "_stop_requested", False):
-                            self.finished_signal.emit("Info: Operacja została anulowana.")
-                            return
-
-                        chunk = data[i:i + block_size]
-                        if len(chunk) < block_size:
-                            chunk = chunk.ljust(block_size, b'\x00')
-                        encrypted_chunk = tf.encrypt_block(chunk)
-                        encrypted_data += encrypted_chunk
-                        processed_size += len(chunk)
-                        progress = int((processed_size / file_size) * 100)
-                        self.emit_progress(processed_size, file_size, progress)
-                    
                     if len(key) == 32:
                         hash_func = skein256
                     elif len(key) == 64:
                         hash_func = skein512
                     else:
                         hash_func = skein1024
+
+                    nonce = get_random_bytes(16)
+                    enc_key, mac_key = derive_subkeys(key, nonce)
+                    
+                    sc = StreamCipher(key=enc_key, nonce=nonce, hasher=hash_func)
+
+                    encrypted_chunks = []
+                    for i in range(0, len(data), chunk_size):
+                        if getattr(self, "_stop_requested", False):
+                            self.finished_signal.emit("Info: Operacja została anulowana.")
+                            return
+
+                        chunk = data[i:i+chunk_size]
+                        encrypted_chunks.append(sc.encrypt(chunk))
+
+                        processed_size += len(chunk)
+                        progress = int((processed_size / file_size) * 100)
+                        self.emit_progress(processed_size, file_size, progress)
+
+                    ciphertext = b"".join(encrypted_chunks)
                         
                     aad = b"Threefish-Skein-MAC|v1|" + str(len(key)*8).encode() + b"|"
-                    tag_input = aad + nonce + encrypted_data
+                    tag_input = aad + nonce + ciphertext
                     tag = hash_func(tag_input, key=mac_key).digest()
-                    encrypted_data = nonce + encrypted_data + tag
+
+                    encrypted_data = nonce + ciphertext + tag
                     operation_message = "Sukces: Plik został zaszyfrowany!"
 
             if self.decrypt:
@@ -1183,7 +1277,7 @@ class FileEncryptor(QWidget):
             ("XChaCha20-Poly1305", "XChaCha20-Poly1305"),
             ("Threefish-Skein-MAC", "Threefish-Skein-MAC"),
             ("--- Asymetryczne ---", None),
-            ("RSA-HMAC", "RSA-HMAC"),
+            ("RSA-PSS", "RSA-PSS"),
         ]
 
         self.algorithm_box.clear()
@@ -1225,16 +1319,16 @@ class FileEncryptor(QWidget):
         self.aes_options_widget.setLayout(aes_options_layout)
         additional_options_layout.addWidget(self.aes_options_widget)
 
-        # Opcje RSA-HMAC
+        # Opcje RSA-PSS
         self.rsa_options_widget = QWidget()
         rsa_options_layout = QVBoxLayout()
-        self.rsa_key_size_label = QLabel("Wybierz długość kluczy RSA-HMAC (bit):")
+        self.rsa_key_size_label = QLabel("Wybierz długość kluczy RSA-PSS (bit):")
         rsa_options_layout.addWidget(self.rsa_key_size_label)
         self.rsa_key_size_box = QComboBox()
         self.rsa_key_size_box.addItems(["1024", "2048", "3072", "4096"])
         self.rsa_key_size_box.setCurrentIndex(1)
         rsa_options_layout.addWidget(self.rsa_key_size_box)
-        self.rsa_padding_label = QLabel("Wybierz padding RSA-HMAC:")
+        self.rsa_padding_label = QLabel("Wybierz padding RSA-PSS:")
         rsa_options_layout.addWidget(self.rsa_padding_label)
         self.rsa_padding_box = QComboBox()
         self.rsa_padding_box.addItems(["PKCS1 v1.5", "OAEP"])
@@ -1461,7 +1555,7 @@ class FileEncryptor(QWidget):
 
         self.algorithm_widgets = {
             "AES": [self.aes_options_widget],
-            "RSA-HMAC": [self.rsa_options_widget, self.rsa_key_widget],
+            "RSA-PSS": [self.rsa_options_widget, self.rsa_key_widget],
             "3DES": [self.des_options_widget],
             "XChaCha20-Poly1305": [],
             "Threefish-Skein-MAC": [self.threefish_options_widget]
@@ -1769,7 +1863,14 @@ class FileEncryptor(QWidget):
                 self.key_label.setText(f"Klucz: {self.key_path}")
                 QMessageBox.information(self, "Sukces", "Klucz AES został wygenerowany!")
             elif algorithm == "3DES":
-                key = get_random_bytes(24)
+                while True:
+                    candidate = get_random_bytes(24)
+                    key = DES3.adjust_key_parity(candidate)
+                    try:
+                        DES3.new(key, DES3.MODE_EAX)
+                        break
+                    except ValueError:
+                        continue
                 with open(key_path, "wb") as key_file:
                     key_file.write(key)
                 self.key_path = key_path
@@ -1811,7 +1912,7 @@ class FileEncryptor(QWidget):
             self.clear_private_key_button.setEnabled(True)
             self.add_to_history(self.private_key_path, self.recent_private_keys)
             self.update_recent_private_keys_menu()
-            QMessageBox.information(self, "Sukces", "Klucz prywatny RSA-HMAC został wygenerowany!")
+            QMessageBox.information(self, "Sukces", "Klucz prywatny RSA-PSS został wygenerowany!")
 
     def generate_public_key(self):
         if not self.private_key_path:
@@ -1832,7 +1933,7 @@ class FileEncryptor(QWidget):
             self.clear_public_key_button.setEnabled(True)
             self.add_to_history(self.public_key_path, self.recent_public_keys)
             self.update_recent_public_keys_menu()
-            QMessageBox.information(self, "Sukces", "Klucz publiczny RSA-HMAC został wygenerowany!")
+            QMessageBox.information(self, "Sukces", "Klucz publiczny RSA-PSS został wygenerowany!")
 
     def encrypt_file(self):
         if not self.file_path or not os.path.exists(self.file_path):
@@ -1849,7 +1950,19 @@ class FileEncryptor(QWidget):
         
         algorithm = self.algorithm_box.currentText()
 
-        if algorithm == "RSA-HMAC":
+        if algorithm == "RSA-PSS":
+            if not self.private_key_path or not os.path.exists(self.private_key_path):
+                if self.private_key_path and self.private_key_path in self.recent_private_keys:
+                    self.recent_private_keys.remove(self.private_key_path)
+                    self.update_recent_private_keys_menu()
+                    self.settings.setValue("recent_private_keys", self.recent_private_keys)
+                if not self.private_key_path:
+                    QMessageBox.warning(self, "Błąd", "Wybierz klucz prywatny!")
+                else:
+                    QMessageBox.warning(self, "Błąd", f"Klucz prywatny: {self.private_key_path} nie istnieje. Usunięto go z historii ostatnich kluczy prywatnych.")
+                    self.clear_private_key_path()
+                return
+
             if not self.public_key_path or not os.path.exists(self.public_key_path):
                 if self.public_key_path and self.public_key_path in self.recent_public_keys:
                     self.recent_public_keys.remove(self.public_key_path)
@@ -1862,11 +1975,16 @@ class FileEncryptor(QWidget):
                     self.clear_public_key_path()
                 return
 
+            if not os.path.exists(self.private_key_path):
+                QMessageBox.warning(self, "Błąd", "Wybrany klucz prywatny nie istnieje.")
+                return
+
             if not os.path.exists(self.public_key_path):
                 QMessageBox.warning(self, "Błąd", "Wybrany klucz publiczny nie istnieje.")
                 return
 
-            key_path = self.public_key_path
+            key_path = self.private_key_path
+            public_key_path = self.public_key_path
             mode = None
             key_size = int(self.rsa_key_size_box.currentText())
             padding = self.rsa_padding_box.currentText()
@@ -1908,9 +2026,9 @@ class FileEncryptor(QWidget):
         MAX_3DES_FILE_SIZE = 1024 * 1024 * 1024 * 32 # 32GB
         file_size = os.path.getsize(self.file_path)
 
-        if algorithm == "RSA-HMAC":
+        if algorithm == "RSA-PSS":
             if file_size > MAX_RSA_FILE_SIZE:
-                QMessageBox.warning(self, "Błąd", f"RSA-HMAC nie nadaje się do plików większych niż {MAX_RSA_FILE_SIZE // (1024*1024)} MB!")
+                QMessageBox.warning(self, "Błąd", f"RSA-PSS nie nadaje się do plików większych niż {MAX_RSA_FILE_SIZE // (1024*1024)} MB!")
                 return
         else:
             if algorithm == "AES":
@@ -1942,7 +2060,7 @@ class FileEncryptor(QWidget):
         self.cancel_button.setVisible(True)
         self.taskbar_progress.setVisible(True)
         self.taskbar_progress.setValue(0)
-        self.thread = EncryptDecryptThread(self.file_path, key_path, algorithm, mode, padding, key_size, save_path=self.save_path)
+        self.thread = EncryptDecryptThread(self.file_path, key_path, public_key_path, algorithm, mode, padding, key_size, save_path=self.save_path)
         self.thread.progress_signal.connect(self.update_progress)
         self.thread.finished_signal.connect(self.operation_finished)
         self.thread.start()
@@ -1962,7 +2080,7 @@ class FileEncryptor(QWidget):
 
         algorithm = self.algorithm_box.currentText()
 
-        if algorithm == "RSA-HMAC":
+        if algorithm == "RSA-PSS":
             if not self.private_key_path or not os.path.exists(self.private_key_path):
                 if self.private_key_path and self.private_key_path in self.recent_private_keys:
                     self.recent_private_keys.remove(self.private_key_path)
@@ -1974,8 +2092,21 @@ class FileEncryptor(QWidget):
                     QMessageBox.warning(self, "Błąd", f"Klucz prywatny: {self.private_key_path} nie istnieje. Usunięto go z historii ostatnich kluczy prywatnych.")
                     self.clear_private_key_path()
                 return
+            
+            if not self.public_key_path or not os.path.exists(self.public_key_path):
+                if self.public_key_path and self.public_key_path in self.recent_public_keys:
+                    self.recent_public_keys.remove(self.public_key_path)
+                    self.update_recent_public_keys_menu()
+                    self.settings.setValue("recent_public_keys", self.recent_public_keys)
+                if not self.public_key_path:
+                    QMessageBox.warning(self, "Błąd", "Wybierz klucz publiczny!")
+                else:
+                    QMessageBox.warning(self, "Błąd", f"Klucz publiczny: {self.public_key_path} nie istnieje. Usunięto go z historii ostatnich kluczy publicznych.")
+                    self.clear_public_key_path()
+                return
 
             key_path = self.private_key_path
+            public_key_path = self.public_key_path
             mode = None
             key_size = int(self.rsa_key_size_box.currentText())
             padding = self.rsa_padding_box.currentText()
@@ -2030,7 +2161,7 @@ class FileEncryptor(QWidget):
         QTimer.singleShot(0, self.adjustSize)
         self.taskbar_progress.setVisible(True)
         self.taskbar_progress.setValue(0)
-        self.thread = EncryptDecryptThread(self.file_path, key_path, algorithm, mode, padding, key_size, decrypt=True, save_path=self.save_path)
+        self.thread = EncryptDecryptThread(self.file_path, key_path, public_key_path, algorithm, mode, padding, key_size, decrypt=True, save_path=self.save_path)
         self.thread.progress_signal.connect(self.update_progress)
         self.thread.finished_signal.connect(self.operation_finished)
         self.thread.start()
@@ -2189,7 +2320,7 @@ class FileEncryptor(QWidget):
         for widget in self.algorithm_widgets.get(algorithm, []):
             widget.setVisible(True)
 
-        if algorithm == "RSA-HMAC":
+        if algorithm == "RSA-PSS":
             self.key_button.setVisible(False)
             self.generate_key_button.setVisible(False)
             self.key_label.setVisible(False)

@@ -40,7 +40,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 
 ## 🔢 Zaimplementowane algorytmy
 
-![Algorytmy](https://github.com/user-attachments/assets/01467c60-b404-4d2e-98ed-3cfcc89bfb6f)
+![Algorytmy](https://github.com/user-attachments/assets/051ef0d3-b792-4796-a95b-a96ac052528d)
 
 ### 🔹 **AES (Advanced Encryption Standard)**
 - **Rodzaj:** Symetryczny, blokowy.
@@ -51,7 +51,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Sprawdzanie integralności plików**: tryby  AEAD (GCM, EAX) - tag MAC (Message Authentication Code).
 - **Maksymalny rozmiar pliku**: 64 GB.
 
-![AES](https://github.com/user-attachments/assets/e29ded45-be4d-4019-8139-d7976b2b1c31)
+![AES](https://github.com/user-attachments/assets/b8fd7516-7a75-4717-b524-266819cd0663)
 
 ![AES 2](https://github.com/user-attachments/assets/423ba5e0-4a6b-47a5-8b63-ab8d7e97babc)
 
@@ -62,24 +62,24 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Struktura:** Oparty na trudności faktoryzacji dużych liczb pierwszych.
 - **Długość klucza w bitach:** 1024, 2048, 3072, 4096.
 - **Padding:** PKCS#1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding).
-- **Sprawdzanie integralności plików**: tag HMAC (Hash-based Message Authentication Code).
+- **Sprawdzanie integralności plików**: podpis PSS (Probabilistic Signature Scheme) z hashem SHA-256 (Secure Hash Alhorithm 256-bit).
 - **Maksymalny rozmiar pliku**: 1 MB.
 
-![RSA](https://github.com/user-attachments/assets/c325fa2c-37d9-45f7-91a4-b41c30c13a28)
+![RSA](https://github.com/user-attachments/assets/9d49e960-9b0b-4cf5-b15c-06146506566f)
 
-![RSA 2](https://github.com/user-attachments/assets/b206d97e-384d-4a46-acb8-515e39b01c3f)
+![RSA 2](https://github.com/user-attachments/assets/c9647f63-e38d-4ff6-8a1c-908d9e913f9e)
 
-![RSA 3](https://github.com/user-attachments/assets/5aa8efe8-f5fb-4827-8112-101f36380190)
+![RSA 3](https://github.com/user-attachments/assets/a0b5d13f-d677-4a71-937f-cfed82b59ace)
 
 ### 🔹 **3DES (Triple Data Encryption Standard)**
 - **Rodzaj:** Symetryczny, blokowy.
-- **Struktura:** Sieć Feistela.
+- **Struktura:** Sieć Feistela (DES zastosowany 3x w schemacie EDE).
 - **Długość klucza w bitach:** 192.
-- **Tryby:** EAX, CFB (Cipher Feedback), OFB (Output Feedback).
-- **Sprawdzanie integralności plików**: tryb EAX - tag MAC (Message Authentication Code).
+- **Tryby:** EAX - AEAD, CFB (Cipher Feedback), OFB (Output Feedback).
+- **Sprawdzanie integralności plików**: tryb AEAD (EAX) - tag MAC (Message Authentication Code).
 - **Maksymalny rozmiar pliku**: tryb EAX - 10 MB, tryby CFB oraz OFB - 32 GB.
 
-![3DES](https://github.com/user-attachments/assets/af48a252-52f1-4f31-8e93-870b5ebc7d9d)
+![3DES](https://github.com/user-attachments/assets/31533d27-ea4c-44fb-9318-d4a8f61081a0)
 
 ![3DES 2](https://github.com/user-attachments/assets/c12f4715-42ce-4d88-997d-63e62cc89393)
 
@@ -90,19 +90,20 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Sprawdzanie integralności plików**: tag Poly1305.
 - **Maksymalny rozmiar pliku**: praktycznie nieograniczony (setki TB do PB).
 
-![XChaCha20](https://github.com/user-attachments/assets/506f0114-eda8-4273-8c11-c8408a6771ac)
+![XChaCha20](https://github.com/user-attachments/assets/cef22c90-5fcb-47ba-9531-128a6cd08bf8)
 
 
 ### 🔹 **Threefish**
 - **Rodzaj:** Symetryczny, blokowy.
 - **Struktura:** Transformacje modularne i bitowe.
 - **Długość klucza w bitach:** 256, 512, 1024.
-- **Sprawdzanie integralności plików**: tag Skein-MAC.
+- **Tryby:** strumieniowy - XOR z keystream, podobny do CTR (Counter).
+- **Sprawdzanie integralności plików**: tag Skein-MAC, klucze wyprowadzane przez HKDF (HMAC-based Key Derivation Function) z hashem SHA-256 (Secure Hash Alhorithm 256-bit), schemat EtM (Encrypt-then-MAC).
 - **Maksymalny rozmiar pliku**: praktycznie nieograniczony (setki TB do PB).
 
-![Threefish](https://github.com/user-attachments/assets/3e42f900-9449-45fa-89d4-31f072dbaef5)
+![Threefish](https://github.com/user-attachments/assets/c0200b10-3d68-4ebd-b35d-df98438eb8f6)
 
-![Threefish 2](https://github.com/user-attachments/assets/95ab525a-91a2-4b25-99df-c0881e2089e1)
+![Threefish 2](https://github.com/user-attachments/assets/398243d7-0291-4954-a625-6653621e7b2c)
 
 ---
 
