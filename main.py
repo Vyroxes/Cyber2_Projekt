@@ -7,7 +7,9 @@ from Crypto.Cipher import AES, DES3, PKCS1_OAEP, PKCS1_v1_5, ChaCha20_Poly1305
 from Crypto.PublicKey import RSA
 from Crypto.Random import get_random_bytes
 from Crypto.Hash import SHA256, HMAC
+from Crypto.Protocol.KDF import HKDF
 from skein import skein256, skein512, skein1024, threefish
+import hmac
 import psutil
 import subprocess
 import tempfile
@@ -644,7 +646,13 @@ class EncryptDecryptThread(QThread):
                     encrypted_data = nonce + encrypted_data + tag
                     operation_message = "Sukces: Plik został zaszyfrowany!"
                     
-            elif self.algorithm == "Threefish-Skein":
+            elif self.algorithm == "Threefish-Skein-MAC":
+                def derive_subkeys(master_key: bytes, nonce: bytes):
+                    key_len = len(master_key)
+                    info = b"Threefish-Skein-MAC|v1|" + str(key_len * 8).encode()
+                    okm = HKDF(master_key, 2 * key_len, salt=nonce, hashmod=SHA256, context=info)
+                    return okm[:key_len], okm[key_len:]
+
                 with open(self.key_path, "rb") as f:
                     key = f.read()
 
@@ -672,11 +680,16 @@ class EncryptDecryptThread(QThread):
                         tag_size = 128
                         
                     nonce, tag, ciphertext = data[:16], data[-tag_size:], data[16:-tag_size]
+                    enc_key, mac_key = derive_subkeys(key, nonce)
+                    aad = b"Threefish-Skein-MAC|v1|" + str(len(key)*8).encode() + b"|"
+                    tag_input = aad + nonce + ciphertext
+                    calculated_tag = hash_func(tag_input, key=mac_key).digest()
+                    if not hmac.compare_digest(calculated_tag, tag):
+                        raise ValueError("Błąd: Nie udało się zweryfikować tagu Skein-MAC!")
                     decrypted_data = b""
                     block_size = len(key)
                     
-                    tf = threefish(key, tweak)
-
+                    tf = threefish(enc_key, tweak)
                     for i in range(0, len(ciphertext), block_size):
                         if getattr(self, "_stop_requested", False):
                             self.finished_signal.emit("Info: Operacja została anulowana.")
@@ -699,9 +712,6 @@ class EncryptDecryptThread(QThread):
                         hash_func = skein1024
                         
                     decrypted_data = decrypted_data.rstrip(b'\x00')
-                    calculated_hash = hash_func(decrypted_data).digest()
-                    if calculated_hash != tag:
-                        raise ValueError("Błąd: Nie udało się zweryfikować tagu Skein!")
                     operation_message = "Sukces: Plik został deszyfrowany!"
                 else:
                     if getattr(self, "_stop_requested", False):
@@ -711,8 +721,9 @@ class EncryptDecryptThread(QThread):
                     encrypted_data = b""
                     block_size = len(key)
                     nonce = get_random_bytes(16)
+                    enc_key, mac_key = derive_subkeys(key, nonce)
                     
-                    tf = threefish(key, tweak)
+                    tf = threefish(enc_key, tweak)
                     
                     for i in range(0, len(data), block_size):
                         if getattr(self, "_stop_requested", False):
@@ -735,7 +746,9 @@ class EncryptDecryptThread(QThread):
                     else:
                         hash_func = skein1024
                         
-                    tag = hash_func(data).digest()
+                    aad = b"Threefish-Skein-MAC|v1|" + str(len(key)*8).encode() + b"|"
+                    tag_input = aad + nonce + encrypted_data
+                    tag = hash_func(tag_input, key=mac_key).digest()
                     encrypted_data = nonce + encrypted_data + tag
                     operation_message = "Sukces: Plik został zaszyfrowany!"
 
@@ -1168,7 +1181,7 @@ class FileEncryptor(QWidget):
             ("AES", "AES"),
             ("3DES", "3DES"),
             ("XChaCha20-Poly1305", "XChaCha20-Poly1305"),
-            ("Threefish-Skein", "Threefish-Skein"),
+            ("Threefish-Skein-MAC", "Threefish-Skein-MAC"),
             ("--- Asymetryczne ---", None),
             ("RSA-HMAC", "RSA-HMAC"),
         ]
@@ -1243,10 +1256,10 @@ class FileEncryptor(QWidget):
         additional_options_layout.addWidget(self.des_options_widget)
         self.des_options_widget.setVisible(False)
 
-        # Opcje Threefish-Skein
+        # Opcje Threefish-Skein-MAC
         self.threefish_options_widget = QWidget()
         threefish_options_layout = QVBoxLayout()
-        self.threefish_key_size_label = QLabel("Wybierz długość klucza Threefish-Skein (bit):")
+        self.threefish_key_size_label = QLabel("Wybierz długość klucza Threefish-Skein-MAC (bit):")
         threefish_options_layout.addWidget(self.threefish_key_size_label)
         self.threefish_key_size_box = QComboBox()
         self.threefish_key_size_box.addItems(["256", "512", "1024"])
@@ -1451,7 +1464,7 @@ class FileEncryptor(QWidget):
             "RSA-HMAC": [self.rsa_options_widget, self.rsa_key_widget],
             "3DES": [self.des_options_widget],
             "XChaCha20-Poly1305": [],
-            "Threefish-Skein": [self.threefish_options_widget]
+            "Threefish-Skein-MAC": [self.threefish_options_widget]
         }
 
         self.all_controls = [
@@ -1769,14 +1782,14 @@ class FileEncryptor(QWidget):
                 self.key_path = key_path
                 self.key_label.setText(f"Klucz: {self.key_path}")
                 QMessageBox.information(self, "Sukces", "Klucz XChaCha20-Poly1305 został wygenerowany!")
-            elif algorithm == "Threefish-Skein":
+            elif algorithm == "Threefish-Skein-MAC":
                 key_size = int(self.threefish_key_size_box.currentText()) // 8
                 key = get_random_bytes(key_size)
                 with open(key_path, "wb") as key_file:
                     key_file.write(key)
                 self.key_path = key_path
                 self.key_label.setText(f"Klucz: {self.key_path}")
-                QMessageBox.information(self, "Sukces", "Klucz Threefish-Skein został wygenerowany!")
+                QMessageBox.information(self, "Sukces", "Klucz Threefish-Skein-MAC został wygenerowany!")
             self.key_label.setToolTip(self.key_path)
             self.clear_key_button.setEnabled(True)
             self.add_to_history(self.key_path, self.recent_keys)
@@ -1880,7 +1893,7 @@ class FileEncryptor(QWidget):
                 mode = self.des_mode_box.currentText()
                 key_size = 0
                 padding = None
-            elif algorithm == "Threefish-Skein":
+            elif algorithm == "Threefish-Skein-MAC":
                 mode = None
                 key_size = int(self.threefish_key_size_box.currentText())
                 padding = None
@@ -1988,7 +2001,7 @@ class FileEncryptor(QWidget):
                 mode = self.des_mode_box.currentText()
                 key_size = 0
                 padding = None
-            elif algorithm == "Threefish-Skein":
+            elif algorithm == "Threefish-Skein-MAC":
                 mode = None
                 key_size = int(self.threefish_key_size_box.currentText())
                 padding = None

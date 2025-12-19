@@ -46,7 +46,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Rodzaj:** Symetryczny, blokowy.
 - **Struktura:** Sieć Feistela z operacjami w polu GF(2⁸).
 - **Długość klucza w bitach:** 128, 192, 256.
-- **Tryby:** GCM (Galois/Counter Mode), EAX (Encrypt-then-Authenticate-then-Translate), CBC (Cipher Block Chaining), ECB (Electronic Codebook).
+- **Tryby:** GCM (Galois/Counter Mode), EAX, CBC (Cipher Block Chaining), ECB (Electronic Codebook).
 - **Padding:** tryby CBC i ECB - PKCS7.
 - **Sprawdzanie integralności plików**: tryby  AEAD (GCM, EAX) - tag MAC (Message Authentication Code).
 - **Maksymalny rozmiar pliku**: 64 GB.
@@ -75,7 +75,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Rodzaj:** Symetryczny, blokowy.
 - **Struktura:** Sieć Feistela.
 - **Długość klucza w bitach:** 192.
-- **Tryby:** EAX (Encrypt-then-Authenticate-then-Translate), CFB (Cipher Feedback), OFB (Output Feedback).
+- **Tryby:** EAX, CFB (Cipher Feedback), OFB (Output Feedback).
 - **Sprawdzanie integralności plików**: tryb EAX - tag MAC (Message Authentication Code).
 - **Maksymalny rozmiar pliku**: tryb EAX - 10 MB, tryby CFB oraz OFB - 32 GB.
 
@@ -83,7 +83,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 
 ![3DES 2](https://github.com/user-attachments/assets/c12f4715-42ce-4d88-997d-63e62cc89393)
 
-### 🔹 **XChaCha20-Poly1305**
+### 🔹 **XChaCha20**
 - **Rodzaj:** Symetryczny, strumieniowy.
 - **Struktura:** Operacje XOR na macierzach i wektorach.
 - **Długość klucza w bitach:** 256.
@@ -97,7 +97,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Rodzaj:** Symetryczny, blokowy.
 - **Struktura:** Transformacje modularne i bitowe.
 - **Długość klucza w bitach:** 256, 512, 1024.
-- **Sprawdzanie integralności plików**: funkcja skrótu Skein.
+- **Sprawdzanie integralności plików**: tag Skein-MAC.
 - **Maksymalny rozmiar pliku**: praktycznie nieograniczony (setki TB do PB).
 
 ![Threefish](https://github.com/user-attachments/assets/3e42f900-9449-45fa-89d4-31f072dbaef5)
