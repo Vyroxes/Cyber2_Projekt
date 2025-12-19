@@ -125,9 +125,9 @@ System zawiera zaimplementowany mechanizm bezpiecznego usuwania pliku niezaszyfr
 
 ## 📂 Dodatkowe funkcje
 
-Podgląd ścieżki pliku oraz klucza/kluczy.
+Podgląd ścieżki i rozmiaru pliku oraz klucza/kluczy, z możliwością otwarcia lokalizacji pliku oraz klucza/kluczy poprzez dwukrotne kliknięcie.
 
-![Podgląd](https://github.com/user-attachments/assets/8ee59dd5-c9a7-47fa-9e55-cdf4e2dcd86b)
+![Podgląd](https://github.com/user-attachments/assets/3498f8d0-9ea5-4b63-a977-5228fa6f7836)
 
 Możliwość usunięcia wybranego pliku oraz klucza/kluczy.
 

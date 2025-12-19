@@ -22,6 +22,13 @@ import warnings
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
+def sizeof_fmt(num, suffix="B"):
+    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi"):
+        if abs(num) < 1024.0:
+            return f"{num:.1f} {unit}{suffix}"
+        num /= 1024.0
+    return f"{num:.1f} Yi{suffix}"
+
 def is_ssd_windows(path):
     try:
         if not path or path.startswith(r"\\"):
@@ -952,7 +959,7 @@ class FileLabel(QLabel):
                 self.setText(f"Klucz prywatny: {self.file_path}")
             elif self.file_type == 3:
                 self.setText(f"Klucz publiczny: {self.file_path}")
-            self.setToolTip(self.file_path)
+            self.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
             main_window = self.window()
             if self.file_type == 0:
                 main_window.file_path = self.file_path
@@ -1683,7 +1690,7 @@ class FileEncryptor(QWidget):
 
         self.file_path = file_path
         self.label.setText(f"Plik: {file_path}")
-        self.label.setToolTip(self.file_path)
+        self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
         self.clear_file_button.setEnabled(True)
         self.add_to_history(self.file_path, self.recent_files)
         self.update_recent_files_menu()
@@ -1701,6 +1708,7 @@ class FileEncryptor(QWidget):
         self.key_path = file_path
         self.key_label.setText(f"Klucz: {file_path}")
         self.key_label.setToolTip(self.key_path)
+        self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
         self.clear_key_button.setEnabled(True)
         self.add_to_history(self.key_path, self.recent_keys)
         self.update_recent_keys_menu()
@@ -1717,7 +1725,7 @@ class FileEncryptor(QWidget):
 
         self.private_key_path = file_path
         self.rsa_private_key_label.setText(f"Klucz prywatny: {file_path}")
-        self.rsa_private_key_label.setToolTip(self.private_key_path)
+        self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
         self.clear_private_key_button.setEnabled(True)
         self.add_to_history(self.private_key_path, self.recent_private_keys)
         self.update_recent_private_keys_menu()
@@ -1734,7 +1742,7 @@ class FileEncryptor(QWidget):
 
         self.public_key_path = file_path
         self.rsa_public_key_label.setText(f"Klucz publiczny: {file_path}")
-        self.rsa_public_key_label.setToolTip(self.public_key_path)
+        self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
         self.clear_public_key_button.setEnabled(True)
         self.add_to_history(self.public_key_path, self.recent_public_keys)
         self.update_recent_public_keys_menu()
@@ -1754,14 +1762,14 @@ class FileEncryptor(QWidget):
             self.label.file_path = file_path
             self.add_to_history(self.file_path, self.recent_files)
             self.label.setText(f"Plik: {self.file_path}")
-            self.label.setToolTip(self.file_path)
+            self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
             self.clear_file_button.setEnabled(True)
             self.update_recent_files_menu()
             self.settings.setValue("recent_files", self.recent_files)
         else:
             if self.file_path:
                 self.label.setText(f"Plik: {self.file_path}")
-                self.label.setToolTip(self.file_path)
+                self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
             else:
                 self.label.setText("Przeciągnij tutaj lub wybierz plik")
                 self.label.setToolTip("")
@@ -1781,14 +1789,14 @@ class FileEncryptor(QWidget):
             self.label.file_path = file_path
             self.add_to_history(self.key_path, self.recent_keys)
             self.key_label.setText(f"Klucz: {self.key_path}")
-            self.key_label.setToolTip(self.key_path)
+            self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
             self.clear_key_button.setEnabled(True)
             self.update_recent_keys_menu()
             self.settings.setValue("recent_keys", self.recent_keys)
         else:
             if self.key_path:
                 self.key_label.setText(f"Klucz: {self.key_path}")
-                self.key_label.setToolTip(self.key_path)
+                self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
             else:
                 self.key_label.setText("Przeciągnij tutaj lub wybierz klucz")
                 self.key_label.setToolTip("")
@@ -1808,14 +1816,14 @@ class FileEncryptor(QWidget):
             self.label.file_path = file_path
             self.add_to_history(self.private_key_path, self.recent_private_keys)
             self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
-            self.rsa_private_key_label.setToolTip(self.private_key_path)
+            self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
             self.clear_private_key_button.setEnabled(True)
             self.update_recent_private_keys_menu()
             self.settings.setValue("recent_private_keys", self.recent_private_keys)
         else:
             if self.private_key_path:
                 self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
-                self.rsa_private_key_label.setToolTip(self.private_key_path)
+                self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
             else:
                 self.rsa_private_key_label.setText("Przeciągnij tutaj lub wybierz klucz prywatny")
                 self.rsa_private_key_label.setToolTip("")
@@ -1835,14 +1843,14 @@ class FileEncryptor(QWidget):
             self.label.file_path = file_path
             self.add_to_history(self.public_key_path, self.recent_public_keys)
             self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
-            self.rsa_public_key_label.setToolTip(self.public_key_path)
+            self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
             self.clear_public_key_button.setEnabled(True)
             self.update_recent_public_keys_menu()
             self.settings.setValue("recent_public_keys", self.recent_public_keys)
         else:
             if self.public_key_path:
                 self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
-                self.rsa_public_key_label.setToolTip(self.public_key_path)
+                self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
             else:
                 self.rsa_public_key_label.setText("Przeciągnij tutaj lub wybierz klucz publiczny")
                 self.rsa_public_key_label.setToolTip("")
@@ -1891,7 +1899,7 @@ class FileEncryptor(QWidget):
                 self.key_path = key_path
                 self.key_label.setText(f"Klucz: {self.key_path}")
                 QMessageBox.information(self, "Sukces", "Klucz Threefish-Skein-MAC został wygenerowany!")
-            self.key_label.setToolTip(self.key_path)
+            self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
             self.clear_key_button.setEnabled(True)
             self.add_to_history(self.key_path, self.recent_keys)
             self.update_recent_keys_menu()
@@ -1908,7 +1916,7 @@ class FileEncryptor(QWidget):
                 key_file.write(private_key)
             self.private_key_path = key_path
             self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
-            self.rsa_private_key_label.setToolTip(self.private_key_path)
+            self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
             self.clear_private_key_button.setEnabled(True)
             self.add_to_history(self.private_key_path, self.recent_private_keys)
             self.update_recent_private_keys_menu()
@@ -1930,6 +1938,7 @@ class FileEncryptor(QWidget):
             self.public_key_path = key_path
             self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
             self.rsa_public_key_label.setToolTip(self.public_key_path)
+            self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
             self.clear_public_key_button.setEnabled(True)
             self.add_to_history(self.public_key_path, self.recent_public_keys)
             self.update_recent_public_keys_menu()
