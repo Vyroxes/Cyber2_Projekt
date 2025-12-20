@@ -51,11 +51,11 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Sprawdzanie integralności plików**: tryby  AEAD (GCM, EAX) - tag MAC (Message Authentication Code).
 - **Maksymalny rozmiar pliku**: 64 GB.
 
-![AES](https://github.com/user-attachments/assets/b8fd7516-7a75-4717-b524-266819cd0663)
+![AES](https://github.com/user-attachments/assets/d471c5da-253a-4017-aa52-801d49394546)
 
-![AES 2](https://github.com/user-attachments/assets/423ba5e0-4a6b-47a5-8b63-ab8d7e97babc)
+![AES 2](https://github.com/user-attachments/assets/4e2b6967-8f2d-4a4d-ac7a-c20eabd622ba)
 
-![AES 3](https://github.com/user-attachments/assets/72c7b224-8bcf-43dd-9f26-ad79065ae6ba)
+![AES 3](https://github.com/user-attachments/assets/21f2882f-b421-4f76-a6df-4f9781620bab)
 
 ### 🔹 **RSA (Rivest–Shamir–Adleman)**
 - **Rodzaj:** Asymetryczny.
@@ -65,11 +65,11 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Sprawdzanie integralności plików**: podpis PSS (Probabilistic Signature Scheme) z hashem SHA-256 (Secure Hash Alhorithm 256-bit).
 - **Maksymalny rozmiar pliku**: 1 MB.
 
-![RSA](https://github.com/user-attachments/assets/9d49e960-9b0b-4cf5-b15c-06146506566f)
+![RSA](https://github.com/user-attachments/assets/873cd11a-37b3-4ba4-9af4-b867220ef0f5)
 
-![RSA 2](https://github.com/user-attachments/assets/c9647f63-e38d-4ff6-8a1c-908d9e913f9e)
+![RSA 2](https://github.com/user-attachments/assets/58e16bcc-928b-4c4f-a1c1-e38241a4f554)
 
-![RSA 3](https://github.com/user-attachments/assets/a0b5d13f-d677-4a71-937f-cfed82b59ace)
+![RSA 3](https://github.com/user-attachments/assets/b88c18db-b8bd-441f-b97b-0900ce8bca3f)
 
 ### 🔹 **3DES (Triple Data Encryption Standard)**
 - **Rodzaj:** Symetryczny, blokowy.
@@ -79,9 +79,9 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Sprawdzanie integralności plików**: tryb AEAD (EAX) - tag MAC (Message Authentication Code).
 - **Maksymalny rozmiar pliku**: tryb EAX - 10 MB, tryby CFB oraz OFB - 32 GB.
 
-![3DES](https://github.com/user-attachments/assets/31533d27-ea4c-44fb-9318-d4a8f61081a0)
+![3DES](https://github.com/user-attachments/assets/f27a811b-6881-4608-bbc4-6e7f2cd2407b)
 
-![3DES 2](https://github.com/user-attachments/assets/c12f4715-42ce-4d88-997d-63e62cc89393)
+![3DES 2](https://github.com/user-attachments/assets/e9f85a8a-e83a-4210-9f40-142394316903)
 
 ### 🔹 **XChaCha20**
 - **Rodzaj:** Symetryczny, strumieniowy.
@@ -101,9 +101,9 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Sprawdzanie integralności plików**: tag Skein-MAC, klucze wyprowadzane przez HKDF (HMAC-based Key Derivation Function) z hashem SHA-256 (Secure Hash Alhorithm 256-bit), schemat EtM (Encrypt-then-MAC).
 - **Maksymalny rozmiar pliku**: praktycznie nieograniczony (setki TB do PB).
 
-![Threefish](https://github.com/user-attachments/assets/c0200b10-3d68-4ebd-b35d-df98438eb8f6)
+![Threefish](https://github.com/user-attachments/assets/8ebe010e-92e5-4e83-b48a-d8b4574447e3)
 
-![Threefish 2](https://github.com/user-attachments/assets/398243d7-0291-4954-a625-6653621e7b2c)
+![Threefish 2](https://github.com/user-attachments/assets/c9634ca0-ce75-4e2e-810c-345443ad4bb5)
 
 ---
 

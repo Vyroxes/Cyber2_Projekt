@@ -10,10 +10,10 @@ from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import HKDF
 from Crypto.Signature import pss
 from skein import skein256, skein512, skein1024, StreamCipher
+import psutil
 import shutil
 import errno
 import hmac
-import psutil
 import subprocess
 import tempfile
 import winreg
@@ -273,7 +273,7 @@ class EncryptDecryptThread(QThread):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
                     
-                    if self.mode == "GCM-MAC":
+                    if self.mode == "GCM (AEAD)":
                         if len(data) < 12 + 16:
                             raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
 
@@ -299,7 +299,7 @@ class EncryptDecryptThread(QThread):
                         decrypted_data = b"".join(decrypted_chunks)
                         operation_message = "Sukces: Plik został deszyfrowany!"
 
-                    elif self.mode == "EAX-MAC":
+                    elif self.mode == "EAX (AEAD)":
                         if len(data) < 16 + 16:
                             raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
 
@@ -385,7 +385,7 @@ class EncryptDecryptThread(QThread):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
 
-                    if self.mode == "GCM-MAC":
+                    if self.mode == "GCM (AEAD)":
                         nonce = get_random_bytes(12)
                         cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
 
@@ -403,7 +403,7 @@ class EncryptDecryptThread(QThread):
                         encrypted_data = nonce + b"".join(encrypted_chunks) + cipher.digest()
                         operation_message = "Sukces: Plik został zaszyfrowany!"
 
-                    elif self.mode == "EAX-MAC":
+                    elif self.mode == "EAX (AEAD)":
                         nonce = get_random_bytes(16)
                         cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
 
@@ -492,7 +492,7 @@ class EncryptDecryptThread(QThread):
                     enc_cipher = PKCS1_OAEP.new(pub)
                     dec_cipher = PKCS1_OAEP.new(priv)
                     chunk_size = k - 42
-                elif self.padding == "PKCS1 v1.5":
+                elif self.padding == "PKCS#1 v1.5":
                     enc_cipher = PKCS1_v1_5.new(pub)
                     dec_cipher = PKCS1_v1_5.new(priv)
                     chunk_size = k - 11
@@ -526,7 +526,7 @@ class EncryptDecryptThread(QThread):
 
                         chunk = encrypted_data[i:i + k]
 
-                        if self.padding == "PKCS1 v1.5":
+                        if self.padding == "PKCS#1 v1.5":
                             sentinel = b"ERROR"
                             pt = dec_cipher.decrypt(chunk, sentinel)
                             if pt == sentinel:
@@ -586,7 +586,7 @@ class EncryptDecryptThread(QThread):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
 
-                    if self.mode == "EAX-MAC":
+                    if self.mode == "EAX (AEAD)":
                         if len(data) < 16 + 16:
                             raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
 
@@ -657,7 +657,7 @@ class EncryptDecryptThread(QThread):
                         self.finished_signal.emit("Info: Operacja została anulowana.")
                         return
 
-                    if self.mode == "EAX-MAC":
+                    if self.mode == "EAX (AEAD)":
                         cipher = DES3.new(key, DES3.MODE_EAX, mac_len=8)
 
                         encrypted_chunks = []
@@ -1331,16 +1331,16 @@ class FileEncryptor(QWidget):
         # opcje AES
         self.aes_options_widget = QWidget()
         aes_options_layout = QVBoxLayout()
-        self.aes_key_size_label = QLabel("Wybierz długość klucza AES (bit):")
+        self.aes_key_size_label = QLabel("Wybierz długość klucza (bit):")
         aes_options_layout.addWidget(self.aes_key_size_label)
         self.aes_key_size_box = QComboBox()
         self.aes_key_size_box.addItems(["128", "192", "256"])
         self.aes_key_size_box.setCurrentIndex(2)
         aes_options_layout.addWidget(self.aes_key_size_box)
-        self.aes_mode_label = QLabel("Wybierz tryb AES:")
+        self.aes_mode_label = QLabel("Wybierz tryb pracy:")
         aes_options_layout.addWidget(self.aes_mode_label)
         self.aes_mode_box = QComboBox()
-        self.aes_mode_box.addItems(["GCM-MAC", "EAX-MAC", "CBC", "ECB"])
+        self.aes_mode_box.addItems(["GCM (AEAD)", "EAX (AEAD)", "CBC", "ECB"])
         aes_options_layout.addWidget(self.aes_mode_box)
         self.aes_options_widget.setLayout(aes_options_layout)
         additional_options_layout.addWidget(self.aes_options_widget)
@@ -1348,16 +1348,16 @@ class FileEncryptor(QWidget):
         # opcje RSA-PSS
         self.rsa_options_widget = QWidget()
         rsa_options_layout = QVBoxLayout()
-        self.rsa_key_size_label = QLabel("Wybierz długość kluczy RSA-PSS (bit):")
+        self.rsa_key_size_label = QLabel("Wybierz długość kluczy (bit):")
         rsa_options_layout.addWidget(self.rsa_key_size_label)
         self.rsa_key_size_box = QComboBox()
         self.rsa_key_size_box.addItems(["1024", "2048", "3072", "4096"])
         self.rsa_key_size_box.setCurrentIndex(1)
         rsa_options_layout.addWidget(self.rsa_key_size_box)
-        self.rsa_padding_label = QLabel("Wybierz padding RSA-PSS:")
+        self.rsa_padding_label = QLabel("Wybierz padding:")
         rsa_options_layout.addWidget(self.rsa_padding_label)
         self.rsa_padding_box = QComboBox()
-        self.rsa_padding_box.addItems(["PKCS1 v1.5", "OAEP"])
+        self.rsa_padding_box.addItems(["PKCS#1 v1.5", "OAEP"])
         self.rsa_padding_box.setCurrentIndex(1)
         rsa_options_layout.addWidget(self.rsa_padding_box)
         self.rsa_options_widget.setLayout(rsa_options_layout)
@@ -1367,10 +1367,10 @@ class FileEncryptor(QWidget):
         # opcje 3DES
         self.des_options_widget = QWidget()
         des_options_layout = QVBoxLayout()
-        self.des_mode_label = QLabel("Wybierz tryb 3DES:")
+        self.des_mode_label = QLabel("Wybierz tryb pracy:")
         des_options_layout.addWidget(self.des_mode_label)
         self.des_mode_box = QComboBox()
-        self.des_mode_box.addItems(["EAX-MAC", "CFB", "OFB"])
+        self.des_mode_box.addItems(["EAX (AEAD)", "CFB", "OFB"])
         des_options_layout.addWidget(self.des_mode_box)
         self.des_options_widget.setLayout(des_options_layout)
         additional_options_layout.addWidget(self.des_options_widget)
@@ -1379,7 +1379,7 @@ class FileEncryptor(QWidget):
         # opcje Threefish-Skein-MAC
         self.threefish_options_widget = QWidget()
         threefish_options_layout = QVBoxLayout()
-        self.threefish_key_size_label = QLabel("Wybierz długość klucza Threefish-Skein-MAC (bit):")
+        self.threefish_key_size_label = QLabel("Wybierz długość klucza (bit):")
         threefish_options_layout.addWidget(self.threefish_key_size_label)
         self.threefish_key_size_box = QComboBox()
         self.threefish_key_size_box.addItems(["256", "512", "1024"])
@@ -1977,9 +1977,15 @@ class FileEncryptor(QWidget):
 
     def generate_public_key(self):
         if not self.private_key_path:
-            QMessageBox.warning(self, "Błąd", "Najpierw wygeneruj klucz prywatny!")
+            QMessageBox.warning(self, "Błąd", "Najpierw wybierz lub wygeneruj klucz prywatny!")
             return
         
+        if not rsa_key.has_private():
+            raise ValueError("Błąd: Wybrany klucz nie jest kluczem prywatnym!")
+
+        if rsa_key.size_in_bits() != int(self.rsa_key_size_box.currentText()):
+            raise ValueError(f"Błąd: Nieprawidłowa długość klucza prywatnego! Wymagany klucz prywatny {int(self.rsa_key_size_box.currentText())}-bitowy, a podany klucz prywatny ma długość {rsa_key.size_in_bits()}-bitów.")
+
         options = QFileDialog.Options()
         default_save_name = "Klucz publiczny.key"
         key_path, _ = QFileDialog.getSaveFileName(self, "Zapisz klucz publiczny", default_save_name, "Key Files (*.key);;All Files (*)", options=options)
@@ -2164,7 +2170,7 @@ class FileEncryptor(QWidget):
                     QMessageBox.warning(self, "Błąd", f"AES nie nadaje się do plików większych niż {MAX_AES_FILE_SIZE // (1024*1024*1024)} GB!")
                     return
             elif algorithm == "3DES":
-                if mode == "EAX-MAC":
+                if mode == "EAX (AEAD)":
                     if file_size > MAX_3DES_EAX_FILE_SIZE:
                         QMessageBox.warning(self, "Błąd", f"3DES w trybie EAX nie nadaje się do plików większych niż {MAX_3DES_EAX_FILE_SIZE // (1024*1024)} MB!")
                         return
