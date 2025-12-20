@@ -10,6 +10,8 @@ from Crypto.Hash import SHA256
 from Crypto.Protocol.KDF import HKDF
 from Crypto.Signature import pss
 from skein import skein256, skein512, skein1024, StreamCipher
+import shutil
+import errno
 import hmac
 import psutil
 import subprocess
@@ -29,7 +31,33 @@ def sizeof_fmt(num, suffix="B"):
         num /= 1024.0
     return f"{num:.1f} Yi{suffix}"
 
-def is_ssd_windows(path):
+def format_exception_for_user(e: Exception, action: str = "Operacja") -> str:
+    if isinstance(e, PermissionError):
+        return f"Błąd: {action} - brak uprawnień (odczyt/zapis)."
+    if isinstance(e, FileNotFoundError):
+        return f"Błąd: {action} - nie znaleziono pliku."
+    if isinstance(e, OSError) and e.errno in (errno.ENOSPC, errno.EDQUOT):
+        return f"Błąd: {action} - brak miejsca na dysku."
+    return f"Błąd: {action} - {e}"
+
+def atomic_write_bytes(dst_path: str, data: bytes) -> None:
+    dirn = os.path.dirname(os.path.abspath(dst_path)) or "."
+    fd, tmp_path = tempfile.mkstemp(prefix=".atomic_write_", suffix=".tmp", dir=dirn)
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, dst_path)
+    except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+        raise
+
+def _is_ssd_windows(path):
     try:
         if not path or path.startswith(r"\\"):
             return False
@@ -96,7 +124,7 @@ def is_ssd_windows(path):
     except Exception:
         return False
 
-def streaming_encrypt_aes_gcm(src_path, dst_path, key, chunk_size=1024*1024):
+def _streaming_encrypt_aes_gcm(src_path, dst_path, key, chunk_size=1024*1024):
     nonce = get_random_bytes(12)
     cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
     with open(src_path, "rb") as fin, open(dst_path, "wb") as fout:
@@ -110,7 +138,7 @@ def streaming_encrypt_aes_gcm(src_path, dst_path, key, chunk_size=1024*1024):
         fout.flush()
         os.fsync(fout.fileno())
 
-def overwrite_with_random(path, chunk_size=4*1024*1024):
+def _overwrite_with_random(path, chunk_size=4*1024*1024):
     size = os.path.getsize(path)
     with open(path, "r+b") as f:
         f.seek(0)
@@ -122,7 +150,7 @@ def overwrite_with_random(path, chunk_size=4*1024*1024):
         f.flush()
         os.fsync(f.fileno())
 
-def hybrid_crypto_erase(path, chunk_size=1024*1024, passes_for_hdd_overwrite=2, do_retrim=True):
+def _hybrid_crypto_erase(path, chunk_size=1024*1024, passes_for_hdd_overwrite=2, do_retrim=True):
     if not os.path.exists(path):
         return False, "Plik nie istnieje"
     dirn = os.path.dirname(os.path.abspath(path)) or "."
@@ -130,7 +158,7 @@ def hybrid_crypto_erase(path, chunk_size=1024*1024, passes_for_hdd_overwrite=2, 
     os.close(fd)
     key = get_random_bytes(32)
     try:
-        streaming_encrypt_aes_gcm(path, tmp_path, key, chunk_size=chunk_size)
+        _streaming_encrypt_aes_gcm(path, tmp_path, key, chunk_size=chunk_size)
 
         try:
             kb = bytearray(key)
@@ -141,10 +169,10 @@ def hybrid_crypto_erase(path, chunk_size=1024*1024, passes_for_hdd_overwrite=2, 
             pass
         del key
 
-        ssd = is_ssd_windows(path)
+        ssd = _is_ssd_windows(path)
         if not ssd:
             for _ in range(max(1, passes_for_hdd_overwrite)):
-                overwrite_with_random(path)
+                _overwrite_with_random(path)
 
         os.replace(tmp_path, path)
         os.remove(path)
@@ -213,13 +241,6 @@ class EncryptDecryptThread(QThread):
             eta = -1
             avg_ram_mb = self._ram_sum_mb / max(1, self._ram_samples_count)
         self.progress_signal.emit(int(progress), int(eta), float(avg_ram_mb))
-
-    def closeEvent(self, event):
-        self.settings.setValue("recent_files", self.recent_files)
-        self.settings.setValue("recent_keys", self.recent_keys)
-        self.settings.setValue("recent_private_keys", self.recent_private_keys)
-        self.settings.setValue("recent_public_keys", self.recent_public_keys)
-        super().closeEvent(event)
 
     def run(self):
         try:
@@ -859,16 +880,14 @@ class EncryptDecryptThread(QThread):
                     return
 
                 dec_path = self.save_path if self.save_path else self.file_path.replace(".enc", ".dec")
-                with open(dec_path, "wb") as f:
-                    f.write(decrypted_data)
+                atomic_write_bytes(dec_path, decrypted_data)
             else:
                 if getattr(self, "_stop_requested", False):
                     self.finished_signal.emit("Info: Operacja została anulowana.")
                     return
 
                 enc_path = self.save_path if self.save_path else self.file_path + ".enc"
-                with open(enc_path, "wb") as f:
-                    f.write(encrypted_data)
+                atomic_write_bytes(enc_path, encrypted_data)
 
             self.progress_signal.emit(100, 0, self._ram_sum_mb / max(1, self._ram_samples_count))
             try:
@@ -884,7 +903,7 @@ class EncryptDecryptThread(QThread):
             self.finished_signal.emit(operation_message)
 
         except Exception as e:
-            self.finished_signal.emit(str(e))
+            self.finished_signal.emit(format_exception_for_user(e))
 
 class FileLabel(QLabel):
     def __init__(self, parent=None, file_type=0):
@@ -964,26 +983,26 @@ class FileLabel(QLabel):
             if self.file_type == 0:
                 main_window.file_path = self.file_path
                 main_window.clear_file_button.setEnabled(True)
-                main_window.add_to_history(self.file_path, main_window.recent_files)
-                main_window.update_recent_files_menu()
+                main_window._add_to_history(self.file_path, main_window.recent_files)
+                main_window._update_recent_files_menu()
                 main_window.settings.setValue("recent_files", main_window.recent_files)
             elif self.file_type == 1:
                 main_window.key_path = self.file_path
                 main_window.clear_key_button.setEnabled(True)
-                main_window.add_to_history(self.file_path, main_window.recent_keys)
-                main_window.update_recent_keys_menu()
+                main_window._add_to_history(self.file_path, main_window.recent_keys)
+                main_window._update_recent_keys_menu()
                 main_window.settings.setValue("recent_keys", main_window.recent_keys)
             elif self.file_type == 2:
                 main_window.private_key_path = self.file_path
                 main_window.clear_private_key_button.setEnabled(True)
-                main_window.add_to_history(self.file_path, main_window.recent_private_keys)
-                main_window.update_recent_private_keys_menu()
+                main_window._add_to_history(self.file_path, main_window.recent_private_keys)
+                main_window._update_recent_private_keys_menu()
                 main_window.settings.setValue("recent_private_keys", main_window.recent_private_keys)
             elif self.file_type == 3:
                 main_window.public_key_path = self.file_path
                 main_window.clear_public_key_button.setEnabled(True)
-                main_window.add_to_history(self.file_path, main_window.recent_public_keys)
-                main_window.update_recent_public_keys_menu()
+                main_window._add_to_history(self.file_path, main_window.recent_public_keys)
+                main_window._update_recent_public_keys_menu()
                 main_window.settings.setValue("recent_public_keys", main_window.recent_public_keys)
 
 class FileEncryptor(QWidget):
@@ -995,15 +1014,15 @@ class FileEncryptor(QWidget):
         self.recent_keys = self.settings.value("recent_keys", [], type=list)
         self.recent_private_keys = self.settings.value("recent_private_keys", [], type=list)
         self.recent_public_keys = self.settings.value("recent_public_keys", [], type=list)
-        self.initUI()
-        self.update_recent_files_menu()
-        self.update_recent_keys_menu()
-        self.update_recent_private_keys_menu()
-        self.update_recent_public_keys_menu()
+        self.init_ui()
+        self._update_recent_files_menu()
+        self._update_recent_keys_menu()
+        self._update_recent_private_keys_menu()
+        self._update_recent_public_keys_menu()
         self.taskbar_button = None
         self.taskbar_progress = None
 
-    def initUI(self):
+    def init_ui(self):
         self.dark_stylesheet = """
             QWidget {
                 background-color: #2e2e2e;
@@ -1195,13 +1214,13 @@ class FileEncryptor(QWidget):
         self.system_theme_timer.timeout.connect(self.on_system_theme_check)
 
         if auto_theme:
-            self.apply_system_theme()
+            self._apply_system_theme()
             self.system_theme_timer.start()
         else:
             if theme_mode == "light":
-                self.apply_light_theme()
+                self._apply_light_theme()
             else:
-                self.apply_dark_theme()
+                self._apply_dark_theme()
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(15, 15, 15, 15)
@@ -1309,7 +1328,7 @@ class FileEncryptor(QWidget):
         self.additional_options_widget = QWidget()
         additional_options_layout = QVBoxLayout()
 
-        # Opcje AES
+        # opcje AES
         self.aes_options_widget = QWidget()
         aes_options_layout = QVBoxLayout()
         self.aes_key_size_label = QLabel("Wybierz długość klucza AES (bit):")
@@ -1326,7 +1345,7 @@ class FileEncryptor(QWidget):
         self.aes_options_widget.setLayout(aes_options_layout)
         additional_options_layout.addWidget(self.aes_options_widget)
 
-        # Opcje RSA-PSS
+        # opcje RSA-PSS
         self.rsa_options_widget = QWidget()
         rsa_options_layout = QVBoxLayout()
         self.rsa_key_size_label = QLabel("Wybierz długość kluczy RSA-PSS (bit):")
@@ -1345,7 +1364,7 @@ class FileEncryptor(QWidget):
         additional_options_layout.addWidget(self.rsa_options_widget)
         self.rsa_options_widget.setVisible(False)
 
-        # Opcje 3DES
+        # opcje 3DES
         self.des_options_widget = QWidget()
         des_options_layout = QVBoxLayout()
         self.des_mode_label = QLabel("Wybierz tryb 3DES:")
@@ -1357,7 +1376,7 @@ class FileEncryptor(QWidget):
         additional_options_layout.addWidget(self.des_options_widget)
         self.des_options_widget.setVisible(False)
 
-        # Opcje Threefish-Skein-MAC
+        # opcje Threefish-Skein-MAC
         self.threefish_options_widget = QWidget()
         threefish_options_layout = QVBoxLayout()
         self.threefish_key_size_label = QLabel("Wybierz długość klucza Threefish-Skein-MAC (bit):")
@@ -1624,9 +1643,9 @@ class FileEncryptor(QWidget):
             self.settings.setValue("recent_private_keys", self.recent_private_keys)
         elif type == 3:
             self.settings.setValue("recent_public_keys", self.recent_public_keys)
-        self.add_menu_actions(type)
+        self._add_menu_actions(type)
 
-    def add_menu_actions(self, type):
+    def _add_menu_actions(self, type):
         if type == 0:
             clear_action = self.recent_files_menu.addAction("Wyczyść historię ostatnich plików")
             clear_action.triggered.connect(lambda: self.clear_history(self.recent_files, self.recent_files_menu, 0))
@@ -1644,35 +1663,35 @@ class FileEncryptor(QWidget):
             clear_action.triggered.connect(lambda: self.clear_history(self.recent_public_keys, self.recent_public_keys_menu, 3))
             self.recent_public_keys_menu.addSeparator()
 
-    def update_recent_files_menu(self):
+    def _update_recent_files_menu(self):
         self.recent_files_menu.clear()
-        self.add_menu_actions(0)
+        self._add_menu_actions(0)
         for file in self.recent_files:
             action = self.recent_files_menu.addAction(file)
             action.triggered.connect(lambda checked, p=file: self.select_recent_file(p))
 
-    def update_recent_keys_menu(self):
+    def _update_recent_keys_menu(self):
         self.recent_keys_menu.clear()
-        self.add_menu_actions(1)
+        self._add_menu_actions(1)
         for key in self.recent_keys:
             action = self.recent_keys_menu.addAction(key)
             action.triggered.connect(lambda checked, p=key: self.select_recent_key(p))
 
-    def update_recent_private_keys_menu(self):
+    def _update_recent_private_keys_menu(self):
         self.recent_private_keys_menu.clear()
-        self.add_menu_actions(2)
+        self._add_menu_actions(2)
         for key in self.recent_private_keys:
             action = self.recent_private_keys_menu.addAction(key)
             action.triggered.connect(lambda checked, p=key: self.select_recent_private_key(p))
 
-    def update_recent_public_keys_menu(self):
+    def _update_recent_public_keys_menu(self):
         self.recent_public_keys_menu.clear()
-        self.add_menu_actions(3)
+        self._add_menu_actions(3)
         for key in self.recent_public_keys:
             action = self.recent_public_keys_menu.addAction(key)
             action.triggered.connect(lambda checked, p=key: self.select_recent_public_key(p))
 
-    def add_to_history(self, path, history_list, max_items=10):
+    def _add_to_history(self, path, history_list, max_items=10):
         if path in history_list:
             history_list.remove(path)
         history_list.insert(0, path)
@@ -1683,7 +1702,7 @@ class FileEncryptor(QWidget):
         if not os.path.exists(file_path):
             if file_path in self.recent_files:
                 self.recent_files.remove(file_path)
-                self.update_recent_files_menu()
+                self._update_recent_files_menu()
                 self.settings.setValue("recent_files", self.recent_files)
             QMessageBox.warning(self, "Błąd", f"Plik: {file_path} nie istnieje. Usunięto go z historii ostatnich plików.")
             return
@@ -1692,15 +1711,15 @@ class FileEncryptor(QWidget):
         self.label.setText(f"Plik: {file_path}")
         self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
         self.clear_file_button.setEnabled(True)
-        self.add_to_history(self.file_path, self.recent_files)
-        self.update_recent_files_menu()
+        self._add_to_history(self.file_path, self.recent_files)
+        self._update_recent_files_menu()
         self.settings.setValue("recent_files", self.recent_files)
 
     def select_recent_key(self, file_path):
         if not os.path.exists(file_path):
             if file_path in self.recent_keys:
                 self.recent_keys.remove(file_path)
-                self.update_recent_keys_menu()
+                self._update_recent_keys_menu()
                 self.settings.setValue("recent_keys", self.recent_keys)
             QMessageBox.warning(self, "Błąd", f"Plik: {file_path} nie istnieje. Usunięto go z historii ostatnich kluczy.")
             return
@@ -1710,15 +1729,15 @@ class FileEncryptor(QWidget):
         self.key_label.setToolTip(self.key_path)
         self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
         self.clear_key_button.setEnabled(True)
-        self.add_to_history(self.key_path, self.recent_keys)
-        self.update_recent_keys_menu()
+        self._add_to_history(self.key_path, self.recent_keys)
+        self._update_recent_keys_menu()
         self.settings.setValue("recent_keys", self.recent_keys)
 
     def select_recent_private_key(self, file_path):
         if not os.path.exists(file_path):
             if file_path in self.recent_private_keys:
                 self.recent_private_keys.remove(file_path)
-                self.update_recent_private_keys_menu()
+                self._update_recent_private_keys_menu()
                 self.settings.setValue("recent_private_keys", self.recent_private_keys)
             QMessageBox.warning(self, "Błąd", f"Plik: {file_path} nie istnieje. Usunięto go z historii ostatnich kluczy prywatnych.")
             return
@@ -1727,15 +1746,15 @@ class FileEncryptor(QWidget):
         self.rsa_private_key_label.setText(f"Klucz prywatny: {file_path}")
         self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
         self.clear_private_key_button.setEnabled(True)
-        self.add_to_history(self.private_key_path, self.recent_private_keys)
-        self.update_recent_private_keys_menu()
+        self._add_to_history(self.private_key_path, self.recent_private_keys)
+        self._update_recent_private_keys_menu()
         self.settings.setValue("recent_private_keys", self.recent_private_keys)
 
     def select_recent_public_key(self, file_path):
         if not os.path.exists(file_path):
             if file_path in self.recent_public_keys:
                 self.recent_public_keys.remove(file_path)
-                self.update_recent_public_keys_menu()
+                self._update_recent_public_keys_menu()
                 self.settings.setValue("recent_public_keys", self.recent_public_keys)
             QMessageBox.warning(self, "Błąd", f"Plik: {file_path} nie istnieje. Usunięto go z historii ostatnich kluczy publicznych.")
             return
@@ -1744,8 +1763,8 @@ class FileEncryptor(QWidget):
         self.rsa_public_key_label.setText(f"Klucz publiczny: {file_path}")
         self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
         self.clear_public_key_button.setEnabled(True)
-        self.add_to_history(self.public_key_path, self.recent_public_keys)
-        self.update_recent_public_keys_menu()
+        self._add_to_history(self.public_key_path, self.recent_public_keys)
+        self._update_recent_public_keys_menu()
         self.settings.setValue("recent_public_keys", self.recent_public_keys)
 
     def clear_file_path(self):
@@ -1760,11 +1779,11 @@ class FileEncryptor(QWidget):
         if file_path:
             self.file_path = file_path
             self.label.file_path = file_path
-            self.add_to_history(self.file_path, self.recent_files)
+            self._add_to_history(self.file_path, self.recent_files)
             self.label.setText(f"Plik: {self.file_path}")
             self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
             self.clear_file_button.setEnabled(True)
-            self.update_recent_files_menu()
+            self._update_recent_files_menu()
             self.settings.setValue("recent_files", self.recent_files)
         else:
             if self.file_path:
@@ -1787,11 +1806,11 @@ class FileEncryptor(QWidget):
         if file_path:
             self.key_path = file_path
             self.label.file_path = file_path
-            self.add_to_history(self.key_path, self.recent_keys)
+            self._add_to_history(self.key_path, self.recent_keys)
             self.key_label.setText(f"Klucz: {self.key_path}")
             self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
             self.clear_key_button.setEnabled(True)
-            self.update_recent_keys_menu()
+            self._update_recent_keys_menu()
             self.settings.setValue("recent_keys", self.recent_keys)
         else:
             if self.key_path:
@@ -1814,11 +1833,11 @@ class FileEncryptor(QWidget):
         if file_path:
             self.private_key_path = file_path
             self.label.file_path = file_path
-            self.add_to_history(self.private_key_path, self.recent_private_keys)
+            self._add_to_history(self.private_key_path, self.recent_private_keys)
             self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
             self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
             self.clear_private_key_button.setEnabled(True)
-            self.update_recent_private_keys_menu()
+            self._update_recent_private_keys_menu()
             self.settings.setValue("recent_private_keys", self.recent_private_keys)
         else:
             if self.private_key_path:
@@ -1841,11 +1860,11 @@ class FileEncryptor(QWidget):
         if file_path:
             self.public_key_path = file_path
             self.label.file_path = file_path
-            self.add_to_history(self.public_key_path, self.recent_public_keys)
+            self._add_to_history(self.public_key_path, self.recent_public_keys)
             self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
             self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
             self.clear_public_key_button.setEnabled(True)
-            self.update_recent_public_keys_menu()
+            self._update_recent_public_keys_menu()
             self.settings.setValue("recent_public_keys", self.recent_public_keys)
         else:
             if self.public_key_path:
@@ -1861,15 +1880,17 @@ class FileEncryptor(QWidget):
         options = QFileDialog.Options()
         default_save_name = "Klucz.key"
         key_path, _ = QFileDialog.getSaveFileName(self, "Zapisz klucz", default_save_name, "Key Files (*.key);;All Files (*)", options=options)
-        if key_path:
+        
+        if not key_path:
+            return
+        
+        try:
             if algorithm == "AES":
                 key_size = int(self.aes_key_size_box.currentText()) // 8
                 key = get_random_bytes(key_size)
-                with open(key_path, "wb") as key_file:
-                    key_file.write(key)
-                self.key_path = key_path
-                self.key_label.setText(f"Klucz: {self.key_path}")
-                QMessageBox.information(self, "Sukces", "Klucz AES został wygenerowany!")
+                atomic_write_bytes(key_path, key)
+                msg = "Klucz AES został wygenerowany!"
+
             elif algorithm == "3DES":
                 while True:
                     candidate = get_random_bytes(24)
@@ -1879,76 +1900,170 @@ class FileEncryptor(QWidget):
                         break
                     except ValueError:
                         continue
-                with open(key_path, "wb") as key_file:
-                    key_file.write(key)
-                self.key_path = key_path
-                self.key_label.setText(f"Klucz: {self.key_path}")
-                QMessageBox.information(self, "Sukces", "Klucz 3DES został wygenerowany!")
+                atomic_write_bytes(key_path, key)
+                msg = "Klucz 3DES został wygenerowany!"
+
             elif algorithm == "XChaCha20-Poly1305":
                 key = get_random_bytes(32)
-                with open(key_path, "wb") as key_file:
-                    key_file.write(key)
-                self.key_path = key_path
-                self.key_label.setText(f"Klucz: {self.key_path}")
-                QMessageBox.information(self, "Sukces", "Klucz XChaCha20-Poly1305 został wygenerowany!")
+                atomic_write_bytes(key_path, key)
+                msg = "Klucz XChaCha20-Poly1305 został wygenerowany!"
+
             elif algorithm == "Threefish-Skein-MAC":
                 key_size = int(self.threefish_key_size_box.currentText()) // 8
                 key = get_random_bytes(key_size)
-                with open(key_path, "wb") as key_file:
-                    key_file.write(key)
-                self.key_path = key_path
-                self.key_label.setText(f"Klucz: {self.key_path}")
-                QMessageBox.information(self, "Sukces", "Klucz Threefish-Skein-MAC został wygenerowany!")
+                atomic_write_bytes(key_path, key)
+                msg = "Klucz Threefish-Skein-MAC został wygenerowany!"
+
+            else:
+                QMessageBox.warning(self, "Błąd", "Wybierz poprawny algorytm.")
+                return
+
+            self.key_path = key_path
+            self.key_label.setText(f"Klucz: {self.key_path}")
             self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
             self.clear_key_button.setEnabled(True)
-            self.add_to_history(self.key_path, self.recent_keys)
-            self.update_recent_keys_menu()
+            self._add_to_history(self.key_path, self.recent_keys)
+            self._update_recent_keys_menu()
+
+            QMessageBox.information(self, "Sukces", msg)
+        
+        except PermissionError:
+            QMessageBox.critical(self, "Błąd", "Brak uprawnień do zapisu w tej lokalizacji.")
+
+        except OSError as e:
+            if getattr(e, "errno", None) in (errno.ENOSPC, errno.EDQUOT):
+                QMessageBox.critical(self, "Błąd", "Brak miejsca na dysku (nie da się zapisać klucza).")
+            else:
+                QMessageBox.critical(self, "Błąd", f"Błąd wejścia/wyjścia podczas zapisu klucza: {e}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Błąd", f"Nie udało się wygenerować/zapisać klucza: {e}")
 
     def generate_private_key(self):
         options = QFileDialog.Options()
         default_save_name = "Klucz prywatny.key"
         key_path, _ = QFileDialog.getSaveFileName(self, "Zapisz klucz prywatny", default_save_name, "Key Files (*.key);;All Files (*)", options=options)
-        if key_path:
+        
+        if not key_path:
+            return
+
+        try:
             rsa_key_size = int(self.rsa_key_size_box.currentText())
             rsa_key = RSA.generate(rsa_key_size)
             private_key = rsa_key.export_key()
-            with open(key_path, "wb") as key_file:
-                key_file.write(private_key)
+
+            atomic_write_bytes(key_path, private_key)
+
             self.private_key_path = key_path
             self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
             self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
             self.clear_private_key_button.setEnabled(True)
-            self.add_to_history(self.private_key_path, self.recent_private_keys)
-            self.update_recent_private_keys_menu()
+            self._add_to_history(self.private_key_path, self.recent_private_keys)
+            self._update_recent_private_keys_menu()
+
             QMessageBox.information(self, "Sukces", "Klucz prywatny RSA-PSS został wygenerowany!")
+
+        except PermissionError:
+            QMessageBox.critical(self, "Błąd", "Brak uprawnień do zapisu w tej lokalizacji.")
+
+        except OSError as e:
+            if getattr(e, "errno", None) in (errno.ENOSPC, errno.EDQUOT):
+                QMessageBox.critical(self, "Błąd", "Brak miejsca na dysku (nie da się zapisać klucza).")
+            else:
+                QMessageBox.critical(self, "Błąd", f"Błąd wejścia/wyjścia podczas zapisu klucza: {e}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Błąd", f"Nie udało się wygenerować/zapisać klucza prywatnego: {e}")
 
     def generate_public_key(self):
         if not self.private_key_path:
             QMessageBox.warning(self, "Błąd", "Najpierw wygeneruj klucz prywatny!")
             return
+        
         options = QFileDialog.Options()
         default_save_name = "Klucz publiczny.key"
         key_path, _ = QFileDialog.getSaveFileName(self, "Zapisz klucz publiczny", default_save_name, "Key Files (*.key);;All Files (*)", options=options)
-        if key_path:
+        
+        if not key_path:
+            return
+        
+        try:
             with open(self.private_key_path, "rb") as f:
                 rsa_key = RSA.import_key(f.read())
             public_key = rsa_key.publickey().export_key()
-            with open(key_path, "wb") as key_file:
-                key_file.write(public_key)
+
+            atomic_write_bytes(key_path, public_key)
+
             self.public_key_path = key_path
             self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
             self.rsa_public_key_label.setToolTip(self.public_key_path)
             self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
             self.clear_public_key_button.setEnabled(True)
-            self.add_to_history(self.public_key_path, self.recent_public_keys)
-            self.update_recent_public_keys_menu()
+            self._add_to_history(self.public_key_path, self.recent_public_keys)
+            self._update_recent_public_keys_menu()
+
             QMessageBox.information(self, "Sukces", "Klucz publiczny RSA-PSS został wygenerowany!")
+
+        except FileNotFoundError:
+            QMessageBox.critical(self, "Błąd", "Nie znaleziono pliku klucza prywatnego.")
+
+        except PermissionError:
+            QMessageBox.critical(self, "Błąd", "Brak uprawnień do odczytu/zapisu w tej lokalizacji.")
+
+        except ValueError as e:
+            QMessageBox.critical(self, "Błąd", f"Nieprawidłowy klucz prywatny: {e}")
+
+        except OSError as e:
+            if getattr(e, "errno", None) in (errno.ENOSPC, errno.EDQUOT):
+                QMessageBox.critical(self, "Błąd", "Brak miejsca na dysku (nie da się zapisać klucza).")
+            else:
+                QMessageBox.critical(self, "Błąd", f"Błąd wejścia/wyjścia: {e}")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Błąd", f"Nie udało się wygenerować/zapisać klucza publicznego: {e}")
+
+    def _get_free_bytes_for_destination(self, dst_path: str):
+        try:
+            dst_dir = os.path.dirname(os.path.abspath(dst_path)) or "."
+            return shutil.disk_usage(dst_dir).free
+        except Exception:
+            return None
+
+    def _confirm_free_space_for_output(self, dst_path: str, approx_output_bytes: int) -> bool:
+        free = self._get_free_bytes_for_destination(dst_path)
+        if free is None:
+            return True
+
+        reserve = 64 * 1024 * 1024  # zapas 64 MB
+        required = int(approx_output_bytes) + reserve
+
+        if free >= required:
+            return True
+
+        dst_dir = os.path.dirname(os.path.abspath(dst_path)) or "."
+        msg = (
+            "Wybrana lokalizacja może nie mieć wystarczająco miejsca na dysku.\n\n"
+            f"Lokalizacja: {dst_dir}\n"
+            f"Wolne miejsce: {sizeof_fmt(free)}\n"
+            f"Szac. wymagane miejsce: {sizeof_fmt(required)}\n\n"
+            f"Kontynuować mimo to?"
+        )
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Warning)
+        box.setWindowTitle("Mało miejsca na dysku")
+        box.setText(msg)
+        box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+        box.setDefaultButton(QMessageBox.No)
+        box.button(QMessageBox.Yes).setText("Tak")
+        box.button(QMessageBox.No).setText("Nie")
+
+        return box.exec_() == QMessageBox.Yes
 
     def encrypt_file(self):
         if not self.file_path or not os.path.exists(self.file_path):
             if self.file_path and self.file_path in self.recent_files:
                 self.recent_files.remove(self.file_path)
-                self.update_recent_files_menu()
+                self._update_recent_files_menu()
                 self.settings.setValue("recent_files", self.recent_files)
             if not self.file_path:
                 QMessageBox.warning(self, "Błąd", "Wybierz plik!")
@@ -1963,7 +2078,7 @@ class FileEncryptor(QWidget):
             if not self.private_key_path or not os.path.exists(self.private_key_path):
                 if self.private_key_path and self.private_key_path in self.recent_private_keys:
                     self.recent_private_keys.remove(self.private_key_path)
-                    self.update_recent_private_keys_menu()
+                    self._update_recent_private_keys_menu()
                     self.settings.setValue("recent_private_keys", self.recent_private_keys)
                 if not self.private_key_path:
                     QMessageBox.warning(self, "Błąd", "Wybierz klucz prywatny!")
@@ -1975,7 +2090,7 @@ class FileEncryptor(QWidget):
             if not self.public_key_path or not os.path.exists(self.public_key_path):
                 if self.public_key_path and self.public_key_path in self.recent_public_keys:
                     self.recent_public_keys.remove(self.public_key_path)
-                    self.update_recent_public_keys_menu()
+                    self._update_recent_public_keys_menu()
                     self.settings.setValue("recent_public_keys", self.recent_public_keys)
                 if not self.public_key_path:
                     QMessageBox.warning(self, "Błąd", "Wybierz klucz publiczny!")
@@ -2002,7 +2117,7 @@ class FileEncryptor(QWidget):
             if not self.key_path or not os.path.exists(self.key_path):
                 if self.key_path and self.key_path in self.recent_keys:
                     self.recent_keys.remove(self.key_path)
-                    self.update_recent_keys_menu()
+                    self._update_recent_keys_menu()
                     self.settings.setValue("recent_keys", self.recent_keys)
                 if not self.key_path:
                     QMessageBox.warning(self, "Błąd", "Wybierz klucz!")
@@ -2013,26 +2128,30 @@ class FileEncryptor(QWidget):
 
             key_path = self.key_path
             if algorithm == "AES":
+                public_key_path = None
                 mode = self.aes_mode_box.currentText()
                 key_size = int(self.aes_key_size_box.currentText())
                 padding = None
             elif algorithm == "3DES":
+                public_key_path = None
                 mode = self.des_mode_box.currentText()
                 key_size = 0
                 padding = None
             elif algorithm == "Threefish-Skein-MAC":
+                public_key_path = None
                 mode = None
                 key_size = int(self.threefish_key_size_box.currentText())
                 padding = None
             else:
+                public_key_path = None
                 mode = None
                 key_size = 0
                 padding = None
 
-        MAX_AES_FILE_SIZE = 1024 * 1024 * 1024 * 64 # 64GB
-        MAX_RSA_FILE_SIZE = 1024 * 1024 # 1MB
-        MAX_3DES_EAX_FILE_SIZE = 1024 * 1024 * 10 # 10MB
-        MAX_3DES_FILE_SIZE = 1024 * 1024 * 1024 * 32 # 32GB
+        MAX_AES_FILE_SIZE = 1024 * 1024 * 1024 * 64 # limit 64GB
+        MAX_RSA_FILE_SIZE = 1024 * 1024 # limit 1MB
+        MAX_3DES_EAX_FILE_SIZE = 1024 * 1024 * 10 # limit 10MB
+        MAX_3DES_FILE_SIZE = 1024 * 1024 * 1024 * 32 # limit 32GB
         file_size = os.path.getsize(self.file_path)
 
         if algorithm == "RSA-PSS":
@@ -2062,7 +2181,11 @@ class FileEncryptor(QWidget):
         base = os.path.splitext(os.path.basename(self.file_path))
         default_save_name = base[0] + " - zaszyfrowany" + base[1] + ".enc"
         self.save_path, _ = QFileDialog.getSaveFileName(self, "Zapisz zaszyfrowany plik", default_save_name, "Encrypted Files (*.enc);;All Files (*)", options=options)
+        
         if not self.save_path:
+            return
+
+        if not self._confirm_free_space_for_output(self.save_path, file_size):
             return
 
         self.toggle_ui(False)
@@ -2078,7 +2201,7 @@ class FileEncryptor(QWidget):
         if not self.file_path or not os.path.exists(self.file_path):
             if self.file_path and self.file_path in self.recent_files:
                 self.recent_files.remove(self.file_path)
-                self.update_recent_files_menu()
+                self._update_recent_files_menu()
                 self.settings.setValue("recent_files", self.recent_files)
             if not self.file_path:
                 QMessageBox.warning(self, "Błąd", "Wybierz plik!")
@@ -2093,7 +2216,7 @@ class FileEncryptor(QWidget):
             if not self.private_key_path or not os.path.exists(self.private_key_path):
                 if self.private_key_path and self.private_key_path in self.recent_private_keys:
                     self.recent_private_keys.remove(self.private_key_path)
-                    self.update_recent_private_keys_menu()
+                    self._update_recent_private_keys_menu()
                     self.settings.setValue("recent_private_keys", self.recent_private_keys)
                 if not self.private_key_path:
                     QMessageBox.warning(self, "Błąd", "Wybierz klucz prywatny!")
@@ -2105,7 +2228,7 @@ class FileEncryptor(QWidget):
             if not self.public_key_path or not os.path.exists(self.public_key_path):
                 if self.public_key_path and self.public_key_path in self.recent_public_keys:
                     self.recent_public_keys.remove(self.public_key_path)
-                    self.update_recent_public_keys_menu()
+                    self._update_recent_public_keys_menu()
                     self.settings.setValue("recent_public_keys", self.recent_public_keys)
                 if not self.public_key_path:
                     QMessageBox.warning(self, "Błąd", "Wybierz klucz publiczny!")
@@ -2123,7 +2246,7 @@ class FileEncryptor(QWidget):
             if not self.key_path or not os.path.exists(self.key_path):
                 if self.key_path and self.key_path in self.recent_keys:
                     self.recent_keys.remove(self.key_path)
-                    self.update_recent_keys_menu()
+                    self._update_recent_keys_menu()
                     self.settings.setValue("recent_keys", self.recent_keys)
                 if not self.key_path:
                     QMessageBox.warning(self, "Błąd", "Wybierz klucz!")
@@ -2134,18 +2257,22 @@ class FileEncryptor(QWidget):
 
             key_path = self.key_path
             if algorithm == "AES":
+                public_key_path = None
                 mode = self.aes_mode_box.currentText()
                 key_size = int(self.aes_key_size_box.currentText())
                 padding = None
             elif algorithm == "3DES":
+                public_key_path = None
                 mode = self.des_mode_box.currentText()
                 key_size = 0
                 padding = None
             elif algorithm == "Threefish-Skein-MAC":
+                public_key_path = None
                 mode = None
                 key_size = int(self.threefish_key_size_box.currentText())
                 padding = None
             else:
+                public_key_path = None
                 mode = None
                 key_size = 0
                 padding = None
@@ -2162,7 +2289,11 @@ class FileEncryptor(QWidget):
         else:
             default_save_name = base2[0] + ' - deszyfrowany' + base2[1]
         self.save_path, _ = QFileDialog.getSaveFileName(self, "Zapisz deszyfrowany plik", default_save_name, "All Files (*)", options=options)
+        
         if not self.save_path:
+            return
+        
+        if not self._confirm_free_space_for_output(self.save_path, os.path.getsize(self.file_path)):
             return
 
         self.toggle_ui(False)
@@ -2253,7 +2384,7 @@ class FileEncryptor(QWidget):
                     secure_delete = False
 
                 if secure_delete:
-                    success, msg = hybrid_crypto_erase(self.file_path)
+                    success, msg = _hybrid_crypto_erase(self.file_path)
                     if success:
                         QMessageBox.information(self, "Sukces", "Oryginalny plik został bezpiecznie usunięty.")
                         self.file_path = ""
@@ -2290,7 +2421,7 @@ class FileEncryptor(QWidget):
                 except Exception as e:
                     QMessageBox.warning(self, "Błąd", f"Nie udało się usunąć pliku: {str(e)}")
 
-    def init_taskbar_progress(self):
+    def _init_taskbar_progress(self):
         self.taskbar_button = QWinTaskbarButton(self)
         self.taskbar_button.setWindow(self.windowHandle())
         self.taskbar_progress = self.taskbar_button.progress()
@@ -2298,7 +2429,7 @@ class FileEncryptor(QWidget):
 
     def showEvent(self, event):
         super().showEvent(event)
-        QTimer.singleShot(0, self.init_taskbar_progress)
+        QTimer.singleShot(0, self._init_taskbar_progress)
 
     def toggle_ui(self, enabled):
         for ctrl in self.all_controls:
@@ -2355,7 +2486,7 @@ class FileEncryptor(QWidget):
 
         QTimer.singleShot(0, self.adjustSize)
 
-    def read_windows_apps_light_theme(self):
+    def _read_windows_apps_light_theme(self):
         try:
             key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
             value, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
@@ -2364,38 +2495,38 @@ class FileEncryptor(QWidget):
         except Exception:
             return True
 
-    def get_system_theme(self):
+    def _get_system_theme(self):
         try:
-            light = self.read_windows_apps_light_theme()
+            light = self._read_windows_apps_light_theme()
             return "light" if light else "dark"
         except Exception:
             return "light"
 
-    def apply_system_theme(self):
-        system_theme = self.get_system_theme()
+    def _apply_system_theme(self):
+        system_theme = self._get_system_theme()
         if system_theme == "light":
-            self.apply_light_theme()
+            self._apply_light_theme()
         else:
-            self.apply_dark_theme()
+            self._apply_dark_theme()
         self.settings.setValue("theme_mode", system_theme)
 
     def on_system_theme_check(self):
         if not self.auto_theme_checkbox.isChecked():
             return
-        current_system = self.get_system_theme()
+        current_system = self._get_system_theme()
         saved = self.settings.value("theme_mode", "dark")
         if current_system != saved:
             if current_system == "light":
-                self.apply_light_theme()
+                self._apply_light_theme()
             else:
-                self.apply_dark_theme()
+                self._apply_dark_theme()
             self.settings.setValue("theme_mode", current_system)
 
     def on_auto_theme_changed(self, state):
         enabled = (state == Qt.Checked)
         self.settings.setValue("auto_theme", enabled)
         if enabled:
-            self.apply_system_theme()
+            self._apply_system_theme()
             self.system_theme_timer.start()
             self.light_theme_button.setEnabled(False)
             self.dark_theme_button.setEnabled(False)
@@ -2404,7 +2535,7 @@ class FileEncryptor(QWidget):
             self.light_theme_button.setEnabled(True)
             self.dark_theme_button.setEnabled(True)
 
-    def update_filelabel_styles(self):
+    def _update_filelabel_styles(self):
         for name in ("label", "key_label", "rsa_private_key_label", "rsa_public_key_label"):
             widget = getattr(self, name, None)
             if widget is not None and hasattr(widget, "reset_style"):
@@ -2413,31 +2544,31 @@ class FileEncryptor(QWidget):
                 except Exception:
                     pass
 
-    def apply_dark_theme(self):
+    def _apply_dark_theme(self):
         self.setStyleSheet(self.dark_stylesheet)
         self.settings.setValue("theme_mode", "dark")
-        self.update_filelabel_styles()
+        self._update_filelabel_styles()
 
-    def apply_light_theme(self):
+    def _apply_light_theme(self):
         self.setStyleSheet(self.light_stylesheet)
         self.settings.setValue("theme_mode", "light")
-        self.update_filelabel_styles()
+        self._update_filelabel_styles()
 
     def set_theme_mode(self, mode: str):
         if mode == "light":
-            self.apply_light_theme()
+            self._apply_light_theme()
         else:
-            self.apply_dark_theme()
+            self._apply_dark_theme()
         self.auto_theme_checkbox.setChecked(False)
         self.settings.setValue("auto_theme", False)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     if getattr(sys, 'frozen', False):
-        applicationPath = sys._MEIPASS
+        application_path = sys._MEIPASS
     elif __file__:
-        applicationPath = os.path.dirname(__file__)
-    icon_path = os.path.join(applicationPath, "icon.ico")
+        application_path = os.path.dirname(__file__)
+    icon_path = os.path.join(application_path, "icon.ico")
     app.setWindowIcon(QIcon(icon_path))
     window = FileEncryptor()
     window.setWindowIcon(QIcon(icon_path))
