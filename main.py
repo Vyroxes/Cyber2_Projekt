@@ -31,14 +31,30 @@ def sizeof_fmt(num, suffix="B"):
         num /= 1024.0
     return f"{num:.1f} Yi{suffix}"
 
+def _safe_file_size_fmt(path: str) -> str:
+    try:
+        return sizeof_fmt(os.path.getsize(path))
+    except OSError:
+        return "—"
+
 def format_exception_for_user(e: Exception, action: str = "Operacja") -> str:
     if isinstance(e, PermissionError):
         return f"Błąd: {action} - brak uprawnień (odczyt/zapis)."
     if isinstance(e, FileNotFoundError):
         return f"Błąd: {action} - nie znaleziono pliku."
-    if isinstance(e, OSError) and e.errno in (errno.ENOSPC, errno.EDQUOT):
+    if isinstance(e, MemoryError):
+        return f"Błąd: {action} - niewystarczająca pamięć RAM."
+    if isinstance(e, OSError) and getattr(e, "errno", None) in (errno.ENOSPC, errno.EDQUOT):
         return f"Błąd: {action} - brak miejsca na dysku."
-    return f"Błąd: {action} - {e}"
+    
+    msg = str(e).strip()
+    if not msg:
+        msg = e.__class__.__name__
+
+    if msg.startswith("Błąd:"):
+        return msg
+    
+    return f"Błąd: {action} - {msg}"
 
 def atomic_write_bytes(dst_path: str, data: bytes) -> None:
     dirn = os.path.dirname(os.path.abspath(dst_path)) or "."
@@ -266,7 +282,7 @@ class EncryptDecryptThread(QThread):
                     return
                 
                 if len(key) != self.key_size//8 or len(key) not in (16, 24, 32):
-                    raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz ma długość " + str(len(key) * 8) + "-bitów.")
+                    raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz jest długości " + str(len(key) * 8) + " bitów.")
 
                 if self.decrypt:
                     if getattr(self, "_stop_requested", False):
@@ -486,7 +502,7 @@ class EncryptDecryptThread(QThread):
                 k = k_pub
 
                 if k*8 != self.key_size or k*8 not in (1024, 2048, 3072, 4096):
-                    raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz ma długość " + str(k*8) + "-bitów.")
+                    raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz jest długości " + str(k*8) + " bitów.")
 
                 if self.padding == "OAEP":
                     enc_cipher = PKCS1_OAEP.new(pub)
@@ -789,7 +805,7 @@ class EncryptDecryptThread(QThread):
                     return
 
                 if len(key) != self.key_size//8 or len(key) not in (32, 64, 128):
-                    raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz ma długość " + str(len(key) * 8) + "-bitów.")
+                    raise ValueError("Błąd: Nieprawidłowa długość klucza! Wymagany klucz " + str(self.key_size) + "-bitowy, a podany klucz jest długości " + str(len(key) * 8) + " bitów.")
                 
                 if self.decrypt:
                     if getattr(self, "_stop_requested", False):
@@ -978,7 +994,7 @@ class FileLabel(QLabel):
                 self.setText(f"Klucz prywatny: {self.file_path}")
             elif self.file_type == 3:
                 self.setText(f"Klucz publiczny: {self.file_path}")
-            self.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
+            self.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.file_path))
             main_window = self.window()
             if self.file_type == 0:
                 main_window.file_path = self.file_path
@@ -1709,7 +1725,7 @@ class FileEncryptor(QWidget):
 
         self.file_path = file_path
         self.label.setText(f"Plik: {file_path}")
-        self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
+        self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.file_path))
         self.clear_file_button.setEnabled(True)
         self._add_to_history(self.file_path, self.recent_files)
         self._update_recent_files_menu()
@@ -1727,7 +1743,7 @@ class FileEncryptor(QWidget):
         self.key_path = file_path
         self.key_label.setText(f"Klucz: {file_path}")
         self.key_label.setToolTip(self.key_path)
-        self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
+        self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.key_path))
         self.clear_key_button.setEnabled(True)
         self._add_to_history(self.key_path, self.recent_keys)
         self._update_recent_keys_menu()
@@ -1744,7 +1760,7 @@ class FileEncryptor(QWidget):
 
         self.private_key_path = file_path
         self.rsa_private_key_label.setText(f"Klucz prywatny: {file_path}")
-        self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
+        self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.private_key_path))
         self.clear_private_key_button.setEnabled(True)
         self._add_to_history(self.private_key_path, self.recent_private_keys)
         self._update_recent_private_keys_menu()
@@ -1761,7 +1777,7 @@ class FileEncryptor(QWidget):
 
         self.public_key_path = file_path
         self.rsa_public_key_label.setText(f"Klucz publiczny: {file_path}")
-        self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
+        self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.public_key_path))
         self.clear_public_key_button.setEnabled(True)
         self._add_to_history(self.public_key_path, self.recent_public_keys)
         self._update_recent_public_keys_menu()
@@ -1781,14 +1797,14 @@ class FileEncryptor(QWidget):
             self.label.file_path = file_path
             self._add_to_history(self.file_path, self.recent_files)
             self.label.setText(f"Plik: {self.file_path}")
-            self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
+            self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.file_path))
             self.clear_file_button.setEnabled(True)
             self._update_recent_files_menu()
             self.settings.setValue("recent_files", self.recent_files)
         else:
             if self.file_path:
                 self.label.setText(f"Plik: {self.file_path}")
-                self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.file_path)))
+                self.label.setToolTip("Ścieżka: " + self.file_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.file_path))
             else:
                 self.label.setText("Przeciągnij tutaj lub wybierz plik")
                 self.label.setToolTip("")
@@ -1808,14 +1824,14 @@ class FileEncryptor(QWidget):
             self.label.file_path = file_path
             self._add_to_history(self.key_path, self.recent_keys)
             self.key_label.setText(f"Klucz: {self.key_path}")
-            self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
+            self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.key_path))
             self.clear_key_button.setEnabled(True)
             self._update_recent_keys_menu()
             self.settings.setValue("recent_keys", self.recent_keys)
         else:
             if self.key_path:
                 self.key_label.setText(f"Klucz: {self.key_path}")
-                self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
+                self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.key_path))
             else:
                 self.key_label.setText("Przeciągnij tutaj lub wybierz klucz")
                 self.key_label.setToolTip("")
@@ -1835,14 +1851,14 @@ class FileEncryptor(QWidget):
             self.label.file_path = file_path
             self._add_to_history(self.private_key_path, self.recent_private_keys)
             self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
-            self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
+            self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.private_key_path))
             self.clear_private_key_button.setEnabled(True)
             self._update_recent_private_keys_menu()
             self.settings.setValue("recent_private_keys", self.recent_private_keys)
         else:
             if self.private_key_path:
                 self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
-                self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
+                self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.private_key_path))
             else:
                 self.rsa_private_key_label.setText("Przeciągnij tutaj lub wybierz klucz prywatny")
                 self.rsa_private_key_label.setToolTip("")
@@ -1862,14 +1878,14 @@ class FileEncryptor(QWidget):
             self.label.file_path = file_path
             self._add_to_history(self.public_key_path, self.recent_public_keys)
             self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
-            self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
+            self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.public_key_path))
             self.clear_public_key_button.setEnabled(True)
             self._update_recent_public_keys_menu()
             self.settings.setValue("recent_public_keys", self.recent_public_keys)
         else:
             if self.public_key_path:
                 self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
-                self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
+                self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.public_key_path))
             else:
                 self.rsa_public_key_label.setText("Przeciągnij tutaj lub wybierz klucz publiczny")
                 self.rsa_public_key_label.setToolTip("")
@@ -1889,7 +1905,7 @@ class FileEncryptor(QWidget):
                 key_size = int(self.aes_key_size_box.currentText()) // 8
                 key = get_random_bytes(key_size)
                 atomic_write_bytes(key_path, key)
-                msg = "Klucz AES został wygenerowany!"
+                msg = f"Klucz AES {key_size * 8}-bitowy został wygenerowany!"
 
             elif algorithm == "3DES":
                 while True:
@@ -1901,18 +1917,18 @@ class FileEncryptor(QWidget):
                     except ValueError:
                         continue
                 atomic_write_bytes(key_path, key)
-                msg = "Klucz 3DES został wygenerowany!"
+                msg = "Klucz 3DES 192-bitowy został wygenerowany!"
 
             elif algorithm == "XChaCha20-Poly1305":
                 key = get_random_bytes(32)
                 atomic_write_bytes(key_path, key)
-                msg = "Klucz XChaCha20-Poly1305 został wygenerowany!"
+                msg = "Klucz XChaCha20-Poly1305 256-bitowy został wygenerowany!"
 
             elif algorithm == "Threefish-Skein-MAC":
                 key_size = int(self.threefish_key_size_box.currentText()) // 8
                 key = get_random_bytes(key_size)
                 atomic_write_bytes(key_path, key)
-                msg = "Klucz Threefish-Skein-MAC został wygenerowany!"
+                msg = f"Klucz Threefish-Skein-MAC {key_size * 8}-bitowy został wygenerowany!"
 
             else:
                 QMessageBox.warning(self, "Błąd", "Wybierz poprawny algorytm.")
@@ -1920,7 +1936,7 @@ class FileEncryptor(QWidget):
 
             self.key_path = key_path
             self.key_label.setText(f"Klucz: {self.key_path}")
-            self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.key_path)))
+            self.key_label.setToolTip("Ścieżka: " + self.key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.key_path))
             self.clear_key_button.setEnabled(True)
             self._add_to_history(self.key_path, self.recent_keys)
             self._update_recent_keys_menu()
@@ -1956,12 +1972,12 @@ class FileEncryptor(QWidget):
 
             self.private_key_path = key_path
             self.rsa_private_key_label.setText(f"Klucz prywatny: {self.private_key_path}")
-            self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.private_key_path)))
+            self.rsa_private_key_label.setToolTip("Ścieżka: " + self.private_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.private_key_path))
             self.clear_private_key_button.setEnabled(True)
             self._add_to_history(self.private_key_path, self.recent_private_keys)
             self._update_recent_private_keys_menu()
 
-            QMessageBox.information(self, "Sukces", "Klucz prywatny RSA-PSS został wygenerowany!")
+            QMessageBox.information(self, "Sukces", f"Klucz prywatny RSA-PSS {rsa_key.size_in_bits()}-bitowy został wygenerowany!")
 
         except PermissionError:
             QMessageBox.critical(self, "Błąd", "Brak uprawnień do zapisu w tej lokalizacji.")
@@ -1979,12 +1995,6 @@ class FileEncryptor(QWidget):
         if not self.private_key_path:
             QMessageBox.warning(self, "Błąd", "Najpierw wybierz lub wygeneruj klucz prywatny!")
             return
-        
-        if not rsa_key.has_private():
-            raise ValueError("Błąd: Wybrany klucz nie jest kluczem prywatnym!")
-
-        if rsa_key.size_in_bits() != int(self.rsa_key_size_box.currentText()):
-            raise ValueError(f"Błąd: Nieprawidłowa długość klucza prywatnego! Wymagany klucz prywatny {int(self.rsa_key_size_box.currentText())}-bitowy, a podany klucz prywatny ma długość {rsa_key.size_in_bits()}-bitów.")
 
         options = QFileDialog.Options()
         default_save_name = "Klucz publiczny.key"
@@ -1998,17 +2008,23 @@ class FileEncryptor(QWidget):
                 rsa_key = RSA.import_key(f.read())
             public_key = rsa_key.publickey().export_key()
 
+            if not rsa_key.has_private():
+                raise ValueError("Błąd: Wybrany klucz nie jest kluczem prywatnym!")
+
+            if rsa_key.size_in_bits() != int(self.rsa_key_size_box.currentText()):
+                raise ValueError(f"Błąd: Nieprawidłowa długość klucza prywatnego! Wymagany klucz prywatny {int(self.rsa_key_size_box.currentText())}-bitowy, a podany klucz prywatny jest długości {rsa_key.size_in_bits()} bitów.")
+
             atomic_write_bytes(key_path, public_key)
 
             self.public_key_path = key_path
             self.rsa_public_key_label.setText(f"Klucz publiczny: {self.public_key_path}")
             self.rsa_public_key_label.setToolTip(self.public_key_path)
-            self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + sizeof_fmt(os.path.getsize(self.public_key_path)))
+            self.rsa_public_key_label.setToolTip("Ścieżka: " + self.public_key_path + " - kliknij dwukrotnie, aby otworzyć lokalizację pliku\nRozmiar pliku: " + _safe_file_size_fmt(self.public_key_path))
             self.clear_public_key_button.setEnabled(True)
             self._add_to_history(self.public_key_path, self.recent_public_keys)
             self._update_recent_public_keys_menu()
 
-            QMessageBox.information(self, "Sukces", "Klucz publiczny RSA-PSS został wygenerowany!")
+            QMessageBox.information(self, "Sukces", f"Klucz publiczny RSA-PSS {rsa_key.size_in_bits()}-bitowy został wygenerowany!")
 
         except FileNotFoundError:
             QMessageBox.critical(self, "Błąd", "Nie znaleziono pliku klucza prywatnego.")
@@ -2017,7 +2033,10 @@ class FileEncryptor(QWidget):
             QMessageBox.critical(self, "Błąd", "Brak uprawnień do odczytu/zapisu w tej lokalizacji.")
 
         except ValueError as e:
-            QMessageBox.critical(self, "Błąd", f"Nieprawidłowy klucz prywatny: {e}")
+            if not str(e).startswith("Błąd:"):
+                QMessageBox.critical(self, "Błąd", f"Nieprawidłowy klucz prywatny: {e}")
+            else:
+                QMessageBox.critical(self, "Błąd", str(e))
 
         except OSError as e:
             if getattr(e, "errno", None) in (errno.ENOSPC, errno.EDQUOT):
