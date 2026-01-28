@@ -16,3 +16,4 @@ venv/
 *.docx
 *.py
 !main.py
+.vscode/

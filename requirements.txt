@@ -1,4 +1,4 @@
-PyQt5
-pycryptodome
-skein
-psutil
+PyQt5==5.15.11
+PyCryptodome==3.23.0
+PySkein==1.0
+psutil==7.2.2

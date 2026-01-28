@@ -177,17 +177,32 @@ Integracja paska postępu z paskiem zadań (Windows).
 
 ### 🔹 **Aplikacja wymaga następujących bibliotek**
 
-- `PyQt5` - biblioteka GUI.
-- `pycryptodome` - zestaw narzędzi kryptograficznych.
-- `skein` - implementacja algorytmów Skein.
-- `psutil` - zarządzanie zasobami systemu.
+- `PyQt5` - graficzny interfejs użytkownika.
+- `PyCryptodome` - implementacja algorytmów kryptograficznych.
+- `PySkein` - implementacja prymitywu kryptograficznego Skein.
+- `psutil` - monitorowanie wykorzystania zasobów systemowych.
 
+### 🔹 **Do zbudowania pliku wykonywalnego wymagane**
 
-### 🔹 **Instalacja zależności**
+  - `PyInstaller` - narzędzie do tworzenia plików wykonywalnych `.exe`.
+
+  Komenda do zbudowania aplikacji:
+  ``` bash
+  pyinstaller --onefile --windowed --icon=icon.ico --name="Szyfrowanie i deszyfrowanie plików" --add-data="icon.ico;." "main.py"
+  ```
+  
+  Instalacja narzędzia PyInstaller:
   ```bash
-  pip install PyQt5 pycryptodome skein psutil
+  pip install PyInstaller==6.18.0
   ```
 
+### 🔹 **Instalacja zależności**
+  Można je zainstalować pojedynczo z określoną wersją:
+  ```bash
+  pip install PyQt5==5.15.11 PyCryptodome==3.23.0 PySkein==1.0 psutil==7.2.2
+  ```
+
+  Lub za pomocą pliku `requirements.txt`:
   ```bash
   pip install -r requirements.txt
   ```
