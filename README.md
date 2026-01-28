@@ -57,20 +57,6 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 
 ![AES 3](https://github.com/user-attachments/assets/21f2882f-b421-4f76-a6df-4f9781620bab)
 
-### 🔹 **RSA (Rivest–Shamir–Adleman)**
-- **Rodzaj:** Asymetryczny.
-- **Struktura:** Oparty na trudności faktoryzacji dużych liczb pierwszych.
-- **Długość klucza w bitach:** 1024, 2048, 3072, 4096.
-- **Padding:** PKCS#1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding).
-- **Sprawdzanie integralności plików**: podpis PSS (Probabilistic Signature Scheme) z hashem SHA-256 (Secure Hash Alhorithm 256-bit).
-- **Maksymalny rozmiar pliku**: 1 MB.
-
-![RSA](https://github.com/user-attachments/assets/873cd11a-37b3-4ba4-9af4-b867220ef0f5)
-
-![RSA 2](https://github.com/user-attachments/assets/58e16bcc-928b-4c4f-a1c1-e38241a4f554)
-
-![RSA 3](https://github.com/user-attachments/assets/b88c18db-b8bd-441f-b97b-0900ce8bca3f)
-
 ### 🔹 **3DES (Triple Data Encryption Standard)**
 - **Rodzaj:** Symetryczny, blokowy.
 - **Struktura:** Sieć Feistela (DES zastosowany 3x w schemacie EDE - encrypt-decrypt-encrypt).
@@ -92,7 +78,6 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 
 ![XChaCha20](https://github.com/user-attachments/assets/cef22c90-5fcb-47ba-9531-128a6cd08bf8)
 
-
 ### 🔹 **Threefish**
 - **Rodzaj:** Symetryczny, blokowy.
 - **Struktura:** Transformacje modularne i bitowe.
@@ -104,6 +89,20 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 ![Threefish](https://github.com/user-attachments/assets/8ebe010e-92e5-4e83-b48a-d8b4574447e3)
 
 ![Threefish 2](https://github.com/user-attachments/assets/c9634ca0-ce75-4e2e-810c-345443ad4bb5)
+
+### 🔹 **RSA (Rivest–Shamir–Adleman)**
+- **Rodzaj:** Asymetryczny.
+- **Struktura:** Oparty na trudności faktoryzacji dużych liczb pierwszych.
+- **Długość klucza w bitach:** 1024, 2048, 3072.
+- **Padding:** PKCS#1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding).
+- **Sprawdzanie integralności plików**: podpis PSS (Probabilistic Signature Scheme) z hashem SHA-256 (Secure Hash Alhorithm 256-bit).
+- **Maksymalny rozmiar pliku**: 1 MB.
+
+![RSA](https://github.com/user-attachments/assets/873cd11a-37b3-4ba4-9af4-b867220ef0f5)
+
+![RSA 2](https://github.com/user-attachments/assets/58e16bcc-928b-4c4f-a1c1-e38241a4f554)
+
+![RSA 3](https://github.com/user-attachments/assets/b88c18db-b8bd-441f-b97b-0900ce8bca3f)
 
 ---
 
