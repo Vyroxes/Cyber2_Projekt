@@ -1,4 +1,4 @@
-🇵🇱 Polish version: README_PL.md
+🇵🇱 [Polish version](README_PL.md)
 
 ## 🔐 File Encryption and Decryption System with Data Integrity Verification
 
