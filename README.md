@@ -81,7 +81,7 @@ The system allows manual theme switching (light/dark). An Automatic Theme option
 - **Type:** Symmetric, block cipher.
 - **Structure:** Feistel-like network with operations in the GF(2⁸) field.
 - **Key lengths (bits):** 128, 192, 256.
-- **Modes:** GCM (Galois/Counter Mode), EAX, CBC (Cipher Block Chaining), ECB (Electronic Codebook).
+- **Modes:** GCM (Galois/Counter Mode) – AEAD, EAX – AEAD, CBC (Cipher Block Chaining), ECB (Electronic Codebook).
 - **Padding:** CBC and ECB modes – PKCS7.
 - **File integrity verification**: AEAD modes (GCM, EAX) – MAC tag (Message Authentication Code).
 - **Maximum file size**: 64 GB.
@@ -96,7 +96,7 @@ The system allows manual theme switching (light/dark). An Automatic Theme option
 - **Type:** Symmetric, block cipher.
 - **Structure:** Feistel network (DES applied three times in EDE scheme – encrypt-decrypt-encrypt).
 - **Key lengths (bits):** 192.
-- **Modes:** EAX (AEAD), CFB (Cipher Feedback), OFB (Output Feedback).
+- **Modes:** EAX – AEAD, CFB (Cipher Feedback), OFB (Output Feedback).
 - **File integrity verification**: AEAD mode (EAX) – MAC tag.
 - **Maximum file size**: EAX mode – 10 MB, CFB and OFB modes – 32 GB.
 
@@ -117,7 +117,7 @@ The system allows manual theme switching (light/dark). An Automatic Theme option
 - **Type:** Symmetric, block cipher.
 - **Structure:** Modular and bitwise transformations.
 - **Key lengths (bits):** 256, 512, 1024.
-- **Modes:** Stream-like mode – XOR with keystream (similar to CTR).
+- **Modes:** Stream-like mode – XOR with keystream (similar to CTR – Counter).
 - **File integrity verification**: Skein-MAC tag, keys derived using HKDF (HMAC-based Key Derivation Function) with SHA-256 (Secure Hash Algorithm 256-bit), EtM scheme (Encrypt-then-MAC).
 - **Maximum file size**: practically unlimited (hundreds of TB to PB).
 
@@ -130,7 +130,7 @@ The system allows manual theme switching (light/dark). An Automatic Theme option
 - **Structure:** Based on the computational difficulty of factoring large prime numbers.
 - **Key lengths (bits):** 1024, 2048, 3072.
 - **Padding:** PKCS#1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding).
-- **File integrity verification**: PSS signature (Probabilistic Signature Scheme) with SHA-256 (Secure Hash Algorithm 256-bit).
+- **File integrity verification**: PSS signature (Probabilistic Signature Scheme) with SHA-256.
 - **Maximum file size**: 1 MB.
 
 ![RSA](https://github.com/user-attachments/assets/873cd11a-37b3-4ba4-9af4-b867220ef0f5)

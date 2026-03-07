@@ -81,9 +81,9 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Rodzaj:** Symetryczny, blokowy.
 - **Struktura:** Sieć Feistela z operacjami w polu GF(2⁸).
 - **Długość klucza w bitach:** 128, 192, 256.
-- **Tryby:** GCM (Galois/Counter Mode), EAX, CBC (Cipher Block Chaining), ECB (Electronic Codebook).
-- **Padding:** tryby CBC i ECB - PKCS7.
-- **Sprawdzanie integralności plików**: tryby AEAD (GCM, EAX) - tag MAC (Message Authentication Code).
+- **Tryby:** GCM (Galois/Counter Mode) – AEAD, EAX – AEAD, CBC (Cipher Block Chaining), ECB (Electronic Codebook).
+- **Padding:** tryby CBC i ECB – PKCS7.
+- **Sprawdzanie integralności plików**: tryby AEAD (GCM, EAX) – tag MAC (Message Authentication Code).
 - **Maksymalny rozmiar pliku**: 64 GB.
 
 ![AES](https://github.com/user-attachments/assets/d471c5da-253a-4017-aa52-801d49394546)
@@ -94,11 +94,11 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 
 ### 🔹 **3DES (Triple Data Encryption Standard)**
 - **Rodzaj:** Symetryczny, blokowy.
-- **Struktura:** Sieć Feistela (DES zastosowany 3x w schemacie EDE - encrypt-decrypt-encrypt).
+- **Struktura:** Sieć Feistela (DES zastosowany 3x w schemacie EDE – encrypt-decrypt-encrypt).
 - **Długość klucza w bitach:** 192.
-- **Tryby:** EAX - AEAD, CFB (Cipher Feedback), OFB (Output Feedback).
-- **Sprawdzanie integralności plików**: tryb AEAD (EAX) - tag MAC (Message Authentication Code).
-- **Maksymalny rozmiar pliku**: tryb EAX - 10 MB, tryby CFB oraz OFB - 32 GB.
+- **Tryby:** EAX – AEAD, CFB (Cipher Feedback), OFB (Output Feedback).
+- **Sprawdzanie integralności plików**: tryb AEAD (EAX) – tag MAC.
+- **Maksymalny rozmiar pliku**: tryb EAX – 10 MB, tryby CFB oraz OFB – 32 GB.
 
 ![3DES](https://github.com/user-attachments/assets/f27a811b-6881-4608-bbc4-6e7f2cd2407b)
 
@@ -117,7 +117,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Rodzaj:** Symetryczny, blokowy.
 - **Struktura:** Transformacje modularne i bitowe.
 - **Długość klucza w bitach:** 256, 512, 1024.
-- **Tryby:** strumieniowy - XOR z keystream, podobny do CTR (Counter).
+- **Tryby:** strumieniowy – XOR z keystream, podobny do CTR (Counter).
 - **Sprawdzanie integralności plików**: tag Skein-MAC, klucze wyprowadzane przez HKDF (HMAC-based Key Derivation Function) z hashem SHA-256 (Secure Hash Algorithm 256-bit), schemat EtM (Encrypt-then-MAC).
 - **Maksymalny rozmiar pliku**: praktycznie nieograniczony (setki TB do PB).
 
@@ -130,7 +130,7 @@ System pozwala na ręczną zmianę motywu (jasny/ciemny). Dostępna jest też op
 - **Struktura:** Oparty na trudności faktoryzacji dużych liczb pierwszych.
 - **Długość klucza w bitach:** 1024, 2048, 3072.
 - **Padding:** PKCS#1 v1.5 (Public-Key Cryptography Standards), OAEP (Optimal Asymmetric Encryption Padding).
-- **Sprawdzanie integralności plików**: podpis PSS (Probabilistic Signature Scheme) z hashem SHA-256 (Secure Hash Alhorithm 256-bit).
+- **Sprawdzanie integralności plików**: podpis PSS (Probabilistic Signature Scheme) z hashem SHA-256.
 - **Maksymalny rozmiar pliku**: 1 MB.
 
 ![RSA](https://github.com/user-attachments/assets/873cd11a-37b3-4ba4-9af4-b867220ef0f5)
