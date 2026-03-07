@@ -342,14 +342,14 @@ class EncryptDecryptThread(QThread):
                         operation_message = "Sukces: Plik został deszyfrowany!"
 
                     elif self.mode == "CBC":
+                        iv, ciphertext = data[:16], data[16:]
+                        cipher = AES.new(key, AES.MODE_CBC, iv=iv)
+
                         if len(data) < 16 + 16:
                             raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
 
                         if len(ciphertext) % 16 != 0:
                             raise ValueError("Błąd: Uszkodzony format CBC!")
-
-                        iv, ciphertext = data[:16], data[16:]
-                        cipher = AES.new(key, AES.MODE_CBC, iv=iv)
 
                         decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
@@ -370,14 +370,14 @@ class EncryptDecryptThread(QThread):
                         operation_message = "Sukces: Plik został deszyfrowany!"
 
                     elif self.mode == "ECB":
-                        if len(ciphertext) < 16:
-                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
-                        
-                        if len(ciphertext) % 16 != 0:
-                            raise ValueError("Błąd: Uszkodzony format ECB!")
-
                         ciphertext = data
                         cipher = AES.new(key, AES.MODE_ECB)
+
+                        if len(ciphertext) < 16:
+                            raise ValueError("Błąd: Zaszyfrowany plik jest zbyt krótki lub uszkodzony!")
+
+                        if len(ciphertext) % 16 != 0:
+                            raise ValueError("Błąd: Uszkodzony format ECB!")
                         
                         decrypted_chunks = []
                         for i in range(0, len(ciphertext), chunk_size):
